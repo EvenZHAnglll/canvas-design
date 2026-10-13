@@ -1,83 +1,225 @@
 # Canvas Studio
 
-在 VS Code 编辑器中打开、预览和编辑 `.canvas`，用同一份 JSON Canvas 文件同步开发者与 AI Agent 的设计方案。
+**Design on a canvas. Keep it in your codebase.**
 
-## 开发与运行
+Canvas Studio is a VS Code extension for opening and editing `.canvas` files as visual documents. Use it to sketch UI layouts, map ideas, connect diagrams, and keep design references beside the code they describe.
 
-需要 Node.js 22+、pnpm 和 VS Code 1.95+。
+The canvas is stored as readable [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/). You can edit it visually, review changes in Git, or ask an AI coding agent to update the same file. Changes to the source are reflected in the visual editor.
+
+Canvas Studio is currently an early MVP. The repository supports local development and installation from a VSIX package; Marketplace publishing is not configured yet.
+
+## What you can do
+
+- **Build lightweight prototypes:** add text, rectangles, ellipses, groups, and connections. Move and resize objects, then edit their appearance in the Details panel.
+- **Keep references in your project:** insert local images, link files, and embed other `.canvas` files as nested previews.
+- **Organize a scene:** use the left-hand Outliner to select objects, expand groups, reorder layers, and move objects into or out of groups. The right-hand Details panel is dedicated to properties.
+- **Work inside VS Code:** open `.canvas` files directly in the visual editor, switch to JSON source, and use the editor's save, undo, and redo workflow.
+- **Navigate with a trackpad:** two-finger scrolling pans the canvas; pinching zooms. Space-drag and middle-button dragging also pan.
+- **Match your editor:** the interface follows VS Code's light, dark, and high-contrast themes while preserving the colors in your design.
+
+The [dashboard example](examples/prototype.canvas) includes shapes, metric cards, a local SVG chart, a [referenced component](examples/components/share-card.canvas), and connected design notes. An [empty canvas](examples/empty.canvas) is also included.
+
+## Install from source
+
+### Requirements
+
+- VS Code **1.95 or newer**.
+- Node.js **22 or newer** and pnpm **10 or newer** to build the extension.
+- The `zip` command to create a VSIX package. It is included with macOS; on other systems, make sure it is available on your `PATH`.
+
+### Build and install
 
 ```sh
+git clone https://github.com/EvenZHAnglll/canvas-studio.git
+cd canvas-studio
 pnpm install
-pnpm build
-pnpm check
+pnpm package
 ```
 
-用 VS Code 打开本目录，按 **F5** 启动 `Run Canvas Studio`。扩展开发窗口会打开 `examples/` 工作区；点击 `prototype.canvas` 查看示例。修改代码后运行 `pnpm build` 并重新加载扩展开发窗口；持续编译使用 `pnpm watch`。
+In VS Code, open the Command Palette, run **Extensions: Install from VSIX…**, and select `dist/canvas-vscode-0.1.0.vsix`.
 
-没有配置 Marketplace 发布；`publisher` 是本地开发占位值。
-
-## 安装到日常使用的 VS Code
-
-F5 只会在扩展开发窗口加载插件。要在普通 VS Code 窗口直接打开 `.canvas` 预览，先构建并安装本地扩展：
+If the VS Code `code` command is available on your `PATH`, you can install from the terminal instead:
 
 ```sh
-pnpm package
 code --install-extension dist/canvas-vscode-0.1.0.vsix --force
 ```
 
-打包使用 `scripts/package.mjs`，需要系统的 `zip` 命令（macOS 自带），无需下载打包工具。安装也可通过 VS Code 扩展面板的 **Install from VSIX…** 选择生成的文件完成。安装后执行 **Developer: Reload Window**，再打开任意 `.canvas` 文件，即可默认进入 Canvas Studio。
+Run **Developer: Reload Window**, then open a `.canvas` file. The package filename follows the version in `package.json`.
 
-项目及示例工作区已在 `.vscode/settings.json` 中显式配置 `workbench.editorAssociations`。如果其他工作区已有覆盖设置，请在其设置中将 `"*.canvas"` 关联到 `"canvasStudio.editor"`，或通过 **Reopen Editor With… → Configure default editor… → Canvas Studio** 设置默认编辑器。需要编辑 JSON 时，可点击画布右下角的 **</>** 源码按钮。
+For extension development, use the [F5 workflow](#development) below to load your local code directly.
 
-## 使用
+## Use the canvas
 
-- `.canvas` 默认在图形编辑器打开。VS Code 编辑器右上角切换源码/预览，画布右下角的 **</>** 按钮也可打开 JSON。需要时通过 VS Code 的 **Reopen Editor With…** 选择编辑器。
-- 界面直接使用 VS Code 的编辑器区域，不额外显示 header；左侧 **Outliner** 管理对象层级，右侧 **Details** 使用整栏高度显示属性，两栏分别滚动。
-- 界面自动跟随 VS Code 当前的浅色、深色及高对比度主题，切换主题即时生效。对象自身的填充、描边及图片内容保留设计文件中的颜色。
-- 命令面板执行 **Canvas: Create Canvas** 创建空白文件。
-- 工具栏选择矩形、圆形、文本或分组，点击或拖动空白区域创建。圆形工具可以绘制椭圆，等宽高时为圆形。
-- 选择对象后拖动位置，拖动右下角手柄调整尺寸，右侧面板修改坐标、尺寸、颜色和圆角。双击文本编辑，`Ctrl/Cmd+Enter` 完成。
-- 图片、Canvas 和文件工具打开本地文件选择器。文件必须位于当前 Canvas 所在目录或已打开的工作区内。嵌套 Canvas 显示其内容，双击进入子文件编辑；保存子文件会刷新父画布。
-- **C** 进入连线模式，依次点击两个对象。点击连线后可删除。**Shift+点击** 多选，**Ctrl/Cmd+D** 复制，**Delete** 删除；拖动分组会移动完全包含在其中的对象。
-- 触控板双指滑动平移画布（支持横向、纵向和斜向），双指捏合或展开缩放；鼠标滚轮也用于平移。**Space+拖动** 或中键拖动平移，工具栏 **+/−** 缩放，**F** 适配画布。**Ctrl/Cmd+S** 保存，沿用 VS Code 的撤销和重做。
+### Open or create a file
 
-## 文件格式与 AI Agent
+Open an existing `.canvas` file from VS Code's Explorer, or run **Canvas: Create Canvas** from the Command Palette to create one.
 
-使用 [JSON Canvas 1.0](https://jsoncanvas.org/spec/1.0/) 的标准 `text`、`file`、`link`、`group` 节点和 `edges`。保留未知字段。路径先相对当前 `.canvas` 解析，再相对工作区根目录解析。
-
-圆形与视觉样式使用 `text` 节点的 `canvasStudio` 扩展：
+If a file opens as text or in another extension, choose **Reopen Editor With… → Configure default editor… → Canvas Studio**. You can also add this association to your user or workspace settings:
 
 ```json
 {
-  "id": "primary-button",
-  "type": "text",
-  "x": 40,
-  "y": 40,
-  "width": 180,
-  "height": 48,
-  "text": "继续",
-  "canvasStudio": {
-    "shape": "rectangle",
-    "fill": "#eee9ff",
-    "stroke": "#7762e5",
-    "radius": 12,
-    "fontSize": 16
+  "workbench.editorAssociations": {
+    "*.canvas": "canvasStudio.editor"
   }
 }
 ```
 
-`shape` 可为 `rectangle` 或 `ellipse`。引用子画布使用标准 `file` 节点，例如 `"file": "components/button.canvas"`；不用复制子文件内容。AI Agent 应保留稳定的节点 ID、标准字段以及不认识的扩展字段。源码或外部文件改动会刷新预览，过期画布操作会被拒绝，防止覆盖新版本。
+The extension must be installed or loaded in an Extension Development Host for this association to work.
 
-## 当前边界
+### Draw, edit, and organize
 
-这是轻量原型 MVP。文本按纯文本显示，尚未渲染 Markdown；文件 `subpath` 保留但不展开。嵌套 Canvas 最多展开四层，检测循环引用，嵌套预览需进入子文件编辑。图片为适配显示，暂不提供裁剪和自由矢量绘制。暂不支持自动布局、组件实例覆盖、多人协作或导出前端代码。
+Choose a shape, text, or group tool, then click or drag on the canvas to create an object. Select an object to move it or resize it with its handles. Use **Details** to change position, dimensions, fill, stroke, corner radius, and text size.
 
-## 目录与验证
+Double-click text to edit it. Press **Cmd/Ctrl+Enter** to finish, or **Escape** to cancel. In connection mode, drag from a node's connection handle to another node. Select a connection and press **Delete** to remove it.
 
-- `src/extension.ts`：VS Code 文档与 Webview 桥接。
-- `src/shared/`：格式校验、编辑操作、样式与路径规则。
-- `src/webview/`：画布交互、SVG 连线和属性面板。
-- `tests/`：Node.js 测试；`pnpm test`。
-- `docs/design.md`：架构及兼容约定；`examples/`：原型与嵌套示例。
+Use the **Outliner** to browse the scene and drag objects to reorder them or change group membership. The top of the Outliner represents the front of the canvas. Dragging a group moves its descendants; deleting a group also removes its descendants and their connections.
 
-`pnpm typecheck` 检查 TypeScript；`pnpm check` 执行类型检查、测试和构建。
+### Add images and nested canvases
+
+The image, Canvas, and file buttons open a local file picker. References must stay within the current canvas directory or an open workspace. Paths are resolved relative to the current `.canvas` file first, then relative to workspace roots.
+
+Nested canvases show a preview of the referenced file. Double-click one to open its source canvas for editing. Changes to the child file refresh its parent preview.
+
+### Switch between the canvas and JSON
+
+Use the editor title-bar actions, the **</>** button at the bottom-right of the canvas, or these commands:
+
+- **Canvas: Open Visual Editor**
+- **Canvas: Open JSON Source**
+
+Visual edits update the VS Code text document. Source and external file changes refresh the canvas; stale visual edits are rejected to avoid overwriting newer changes. Invalid JSON shows an error with a source-editor entry point.
+
+### Navigation and shortcuts
+
+| Action                             | Gesture or shortcut                                               |
+| ---------------------------------- | ----------------------------------------------------------------- |
+| Select / pan tool                  | `V` / `H`                                                         |
+| Rectangle / ellipse / text / group | `R` / `O` / `T` / `G`                                             |
+| Connection mode                    | `C`                                                               |
+| Pan                                | Two-finger scroll, mouse wheel, Space-drag, or middle-button drag |
+| Zoom                               | Trackpad pinch or the `+` / `−` buttons                           |
+| Fit the canvas                     | `F`                                                               |
+| Select multiple objects            | Shift-click                                                       |
+| Select all / duplicate             | Cmd/Ctrl+A / Cmd/Ctrl+D                                           |
+| Move selected objects              | Arrow keys; hold Shift for larger steps                           |
+| Delete selection                   | Delete or Backspace                                               |
+| Save                               | Cmd/Ctrl+S                                                        |
+| Undo / redo                        | Cmd/Ctrl+Z / Cmd/Ctrl+Shift+Z                                     |
+
+## File format and AI workflows
+
+Canvas Studio uses the standard JSON Canvas `text`, `file`, `link`, and `group` nodes and `edges`. Visual styles and group hierarchy metadata are stored in a `canvasStudio` extension object. Unknown fields are preserved when editing.
+
+For example, this is a complete canvas containing a rounded button:
+
+```json
+{
+  "nodes": [
+    {
+      "id": "primary-button",
+      "type": "text",
+      "x": 40,
+      "y": 40,
+      "width": 180,
+      "height": 48,
+      "text": "Continue",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#eee9ff",
+        "stroke": "#7762e5",
+        "radius": 12,
+        "fontSize": 16
+      }
+    }
+  ],
+  "edges": []
+}
+```
+
+`shape` can be `rectangle` or `ellipse`. A nested canvas uses a standard `file` node pointing to a path such as `components/share-card.canvas`. Other JSON Canvas readers can read the standard fields; Canvas Studio's additional visual styles require support for its extensions.
+
+An AI agent with access to your project can read and edit these files directly. For example:
+
+> Open `examples/prototype.canvas`, add a fourth metric card, and adjust the existing cards to fit. Preserve existing node IDs, file references, and unknown metadata.
+
+Keep node IDs stable, use integer coordinates and positive dimensions, and retain fields the agent does not understand. Images and nested canvases remain file references, so their source files can be maintained independently.
+
+Image generation experiments can use the file's layout and content as input to an external image tool. Canvas Studio currently provides the editable canvas; built-in image generation and pixel-exact reproduction by image models are outside its current scope.
+
+## Development
+
+The project uses **TypeScript**, **React**, **React Flow**, and **esbuild**. VS Code's text document is the source of truth, with a Webview providing the visual editor.
+
+### Run and debug with F5
+
+1. Clone the repository and run `pnpm install` as shown above.
+2. Open the repository root in VS Code.
+3. Press **F5** with **Run Canvas Studio** selected.
+4. In the new **Extension Development Host** window, open `prototype.canvas` from the `examples/` workspace.
+
+The launch configuration builds the extension before starting. It loads the local project directly, so there is no need to package or reinstall a VSIX for each change.
+
+For continuous compilation, run this in the project terminal:
+
+```sh
+pnpm watch
+```
+
+After a change finishes compiling, run **Developer: Reload Window** in the Extension Development Host. You can set breakpoints in the extension's TypeScript source. To inspect the Webview's DOM, styles, and browser console, run **Developer: Open Webview Developer Tools** while the canvas is active. Extension logs appear in the **Canvas Studio** Output channel.
+
+### Commands and validation
+
+| Command                 | Purpose                                                                |
+| ----------------------- | ---------------------------------------------------------------------- |
+| `pnpm build`            | Bundle the extension and Webview into `dist/`.                         |
+| `pnpm watch`            | Rebuild automatically when source files change.                        |
+| `pnpm typecheck`        | Check source and tests with TypeScript.                                |
+| `pnpm test`             | Run Node.js unit tests and extension tests using a mocked VS Code API. |
+| `pnpm check`            | Run type checking, unit/mocked-extension tests, and a build.           |
+| `pnpm test:integration` | Build and run integration tests in a real VS Code extension host.      |
+| `pnpm format`           | Format the configured source and documentation files with Prettier.    |
+| `pnpm format:check`     | Check formatting without changing files.                               |
+| `pnpm package`          | Build and create a local VSIX using the system `zip` command.          |
+
+`pnpm check` does not include formatting or real VS Code integration tests. Integration tests cover default canvas opening, Webview rendering, images and nested canvases, source synchronization, and invalid-JSON recovery. They require a desktop environment and a VS Code executable.
+
+The integration runner uses a temporary profile and a copy of the examples. It detects the default macOS VS Code installation, or uses `code` from `PATH`. To choose another executable:
+
+```sh
+VSCODE_EXECUTABLE="/path/to/code" pnpm test:integration
+```
+
+### Project layout
+
+```text
+src/
+  extension.ts       VS Code custom editor, document edits, and resource access
+  shared/            Canvas format, edit sessions, hierarchy, and path rules
+  webview/           React Flow renderer, Outliner, Details, and theme styles
+scripts/             Build, packaging, and test runners
+tests/               Unit, mocked-extension, and VS Code integration tests
+examples/            Sample canvases, nested components, and image assets
+docs/                Architecture and format notes
+output/imagegen/     Image-generation comparison artifacts and prompts
+.vscode/             Debug configuration, build task, and editor association
+```
+
+See [AGENTS.md](AGENTS.md) for contributor conventions and [docs/design.md](docs/design.md) for architecture notes, currently written in Chinese.
+
+## Current limitations
+
+- Text is displayed as plain text; Markdown rendering is not implemented.
+- File `subpath` values are preserved but not expanded.
+- Nested canvas previews expand up to four levels and detect circular references. Edit nested content by opening its source file.
+- Images are fitted to their bounds; cropping and freeform vector drawing are not available.
+- Automatic layout, alignment guides, component instance overrides, multiplayer collaboration, and frontend code export are not implemented.
+
+## Contributing
+
+Bug reports and focused improvements are welcome through [GitHub Issues](https://github.com/EvenZHAnglll/canvas-studio/issues) and pull requests. For bugs, include reproduction steps and a small `.canvas` example when possible.
+
+For code changes, run the relevant checks, add regression coverage for behavior changes, and include screenshots for UI changes. Describe any desktop or manual checks you could not perform. Keep generated bundles, local logs, and VSIX packages out of commits.
+
+## License
+
+[MIT](LICENSE)

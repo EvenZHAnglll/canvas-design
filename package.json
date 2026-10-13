@@ -1,0 +1,91 @@
+{
+  "name": "canvas-vscode",
+  "displayName": "Canvas Studio",
+  "description": "Edit JSON Canvas design files in VS Code, alongside your code and AI agent.",
+  "version": "0.1.0",
+  "publisher": "canvas-studio",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.95.0",
+    "node": ">=22",
+    "pnpm": ">=10"
+  },
+  "categories": [
+    "Visualization",
+    "Other"
+  ],
+  "main": "./dist/extension.cjs",
+  "activationEvents": [
+    "onCustomEditor:canvasStudio.editor"
+  ],
+  "contributes": {
+    "customEditors": [
+      {
+        "viewType": "canvasStudio.editor",
+        "displayName": "Canvas Studio",
+        "selector": [
+          {
+            "filenamePattern": "*.canvas"
+          }
+        ],
+        "priority": "default"
+      }
+    ],
+    "commands": [
+      {
+        "command": "canvasStudio.openPreview",
+        "title": "Canvas: Open Visual Editor",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "canvasStudio.openSource",
+        "title": "Canvas: Open JSON Source",
+        "icon": "$(code)"
+      },
+      {
+        "command": "canvasStudio.newCanvas",
+        "title": "Canvas: Create Canvas"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "canvasStudio.openPreview",
+          "when": "resourceExtname == .canvas && activeCustomEditorId != canvasStudio.editor",
+          "group": "navigation"
+        },
+        {
+          "command": "canvasStudio.openSource",
+          "when": "activeCustomEditorId == canvasStudio.editor",
+          "group": "navigation"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "format": "prettier --write src tests scripts docs .vscode README.md package.json tsconfig.json",
+    "format:check": "prettier --check src tests scripts docs .vscode README.md package.json tsconfig.json",
+    "build": "node scripts/build.mjs",
+    "package": "pnpm build && node scripts/package.mjs",
+    "watch": "node scripts/build.mjs --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "node scripts/test.mjs",
+    "test:integration": "pnpm build && node scripts/integration.mjs",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "vscode:prepublish": "pnpm build"
+  },
+  "dependencies": {
+    "@xyflow/react": "^12.8.5",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@types/vscode": "^1.95.0",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
+    "prettier": "^3.6.2",
+    "esbuild": "^0.27.0",
+    "typescript": "^5.7.0"
+  }
+}

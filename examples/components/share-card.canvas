@@ -1,0 +1,53 @@
+{
+  "nodes": [
+    {
+      "id": "component-title",
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 340,
+      "height": 75,
+      "text": "Ready to share your idea?",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#ffffff",
+        "stroke": "#e2e7f0",
+        "radius": 12,
+        "fontSize": 20
+      }
+    },
+    {
+      "id": "component-caption",
+      "type": "text",
+      "x": 0,
+      "y": 80,
+      "width": 340,
+      "height": 78,
+      "text": "Keep the design close to your code.\nOne file. A shared understanding.",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#ffffff",
+        "stroke": "#e2e7f0",
+        "radius": 12,
+        "fontSize": 14
+      }
+    },
+    {
+      "id": "component-action",
+      "type": "text",
+      "x": 0,
+      "y": 176,
+      "width": 340,
+      "height": 58,
+      "text": "Create a new Canvas  \u2192",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#eee9ff",
+        "stroke": "#b6a7ef",
+        "radius": 12,
+        "fontSize": 17
+      }
+    }
+  ],
+  "edges": []
+}

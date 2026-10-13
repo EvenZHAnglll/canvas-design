@@ -1,0 +1,86 @@
+# Repository Guidelines
+
+## Project Status & Scope
+
+Canvas Studio is a VS Code extension for visually editing JSON Canvas files alongside code and AI agents. The current version is a local-development MVP (`0.1.0`), with shapes, text, groups, connections, image/file references, nested Canvas previews, an Outliner, and a properties inspector.
+
+Markdown rendering, image cropping, automatic layout, component instance overrides, multiplayer collaboration, and frontend code export are not implemented. Marketplace publishing is not configured; the `publisher` in `package.json` is a local-development placeholder.
+
+## Project Structure & Module Organization
+
+- `src/extension.ts`: VS Code custom editor registration, document edits, Webview messaging, resource access, and diagnostics.
+- `src/shared/`: JSON Canvas validation and operations (`canvas.ts`), versioned edit sessions (`edit-session.ts`), group hierarchy and ordering (`hierarchy.ts`), and path rules (`paths.ts`).
+- `src/webview/main.ts`: header-free DOM editor shell, tools, left Outliner, full-height right Details inspector, and edit-session integration.
+- `src/webview/flow.tsx`: React and `@xyflow/react` canvas renderer, node interactions, connections, and nested SVG previews; `style.css` contains editor styles.
+- `tests/`: Node.js unit and mocked-extension tests, the VS Code mock, and real VS Code integration tests.
+- `scripts/`: esbuild build/watch automation, offline local VSIX packaging, Node.js test runner, and VS Code integration runner.
+- `examples/`: empty and prototype `.canvas` files, nested components, and image assets for development and integration tests.
+- `output/imagegen/`: generated UI comparison images and their prompts; these are reference artifacts, not extension runtime assets.
+- `docs/design.md`: architecture and file-format conventions; `README.md`: setup, usage, and current limitations.
+- `.vscode/`: extension-host launch configuration, build task, and default `.canvas` editor association; `examples/.vscode/` sets the same association for the development workspace.
+- `dist/`, `.test-build/`, `node_modules/`, and `logs/`: generated bundles, temporary test output, dependencies, and local diagnostics; do not commit generated output.
+
+Keep reusable automation in `scripts/`. Update this guide and relevant documentation when adding directories, workflows, or changing architecture.
+
+## Build, Test, and Development Commands
+
+Run commands from the repository root. Prerequisites: Node.js 22+, pnpm 10+, and VS Code 1.95+ for extension development.
+
+| Command                 | Purpose                                                                                                                                                                                                  |
+| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`          | Install dependencies using `pnpm-lock.yaml`; `pnpm-workspace.yaml` permits esbuild's dependency build script.                                                                                            |
+| `pnpm build`            | Run `scripts/build.mjs` to bundle the extension and Webview, including CSS and source maps, into `dist/`.                                                                                                |
+| `pnpm package`          | Build and run `scripts/package.mjs` to generate `dist/canvas-vscode-<version>.vsix` for local installation. Requires the system `zip` CLI; no network access is needed after dependencies are installed. |
+| `pnpm watch`            | Run the build script in watch mode.                                                                                                                                                                      |
+| `pnpm typecheck`        | Check source and tests with strict TypeScript; emit no files.                                                                                                                                            |
+| `pnpm test`             | Run `scripts/test.mjs`: bundle `tests/*.test.ts` with esbuild, run Node.js tests with a mocked VS Code API, and remove `.test-build/`.                                                                   |
+| `pnpm test:integration` | Build and run `scripts/integration.mjs` in a real VS Code extension host.                                                                                                                                |
+| `pnpm check`            | Run type checking, unit/mocked-extension tests, and build, in that order. Excludes formatting and real VS Code integration tests.                                                                        |
+| `pnpm format`           | Format the source, tests, scripts, docs, VS Code configuration, README, package manifest, and TypeScript configuration with Prettier.                                                                    |
+| `pnpm format:check`     | Check formatting for the same paths without rewriting files.                                                                                                                                             |
+
+Open this directory in VS Code and press **F5** with **Run Canvas Studio** selected. The launch configuration builds first and opens `examples/` in an extension development window. Open `prototype.canvas` to exercise the editor. After code changes, rebuild (or use `pnpm watch`) and reload the development window.
+
+For normal VS Code windows, install the generated VSIX using **Extensions: Install from VSIX…** or `code --install-extension dist/canvas-vscode-0.1.0.vsix --force`, then reload the window. Default editor resolution relies on the installed extension's `customEditors` contribution (`priority: default`) and any `workbench.editorAssociations` overrides. Keep explicit JSON source opening available.
+
+Integration tests require a desktop environment and a VS Code executable. The runner checks the default macOS app installation, otherwise uses `code` from `PATH`; set `VSCODE_EXECUTABLE` to an executable path to override detection. It uses a temporary profile, extensions directory, and copy of `examples/`, and stops the run after 90 seconds. Example: `VSCODE_EXECUTABLE="/path/to/code" pnpm test:integration`.
+
+## Coding Style & Naming Conventions
+
+- Use strict TypeScript for application code, TSX for React components, and ESM `.mjs` for development scripts.
+- Follow `.editorconfig` and `.prettierrc.json`: UTF-8, LF line endings, two-space indentation, final newlines, single quotes, trailing commas, and a 100-column Prettier print width.
+- Use descriptive filenames, camelCase functions and variables, and PascalCase types and React components. Keep modules small and focused.
+- Keep shared data logic independent of VS Code and browser APIs so it can be tested directly.
+- Prettier and TypeScript are configured; no separate lint command is currently defined.
+
+## Canvas & Editor Invariants
+
+- Preserve JSON Canvas 1.0 standard nodes (`text`, `file`, `link`, `group`) and edges, stable IDs, and unknown root/node/edge/extension fields. Put editor-specific visual and hierarchy metadata under `canvasStudio`.
+- Keep VS Code's text document as the source of truth. Apply visual edits through `WorkspaceEdit`, preserving save, undo, and redo behavior.
+- Use the versioned edit protocol and `EditSession`; reject stale operations rather than overwrite newer source or AI edits. Invalid JSON must remain recoverable through the source editor and must not be replaced by visual edits.
+- Preserve source indentation, line endings, and final-newline conventions when serializing Canvas edits.
+- Keep group hierarchy acyclic, preserve absolute coordinates when changing membership, and maintain node-array order as visual stacking order. Group deletion removes descendants and incident edges.
+- Keep nested Canvas references as file references instead of copying their contents into the parent. Detect cycles, cap expansion at four levels, and open the child file for editing. File `subpath` is preserved but not expanded.
+- Use VS Code theme variables for editor UI, inputs, and viewport helpers, including dark and high-contrast themes. Preserve authored node and image colors when the host theme changes. Keep Outliner and Details in separate left and right sidebars.
+
+## Testing Guidelines
+
+- Use `node:test` and `node:assert/strict` in `tests/<feature>.test.ts`; `scripts/test.mjs` discovers these files automatically.
+- Cover new behavior and bug regressions in the appropriate format, edit-session, hierarchy, path, or extension suite. Use descriptive behavior-based test names. No coverage threshold is configured.
+- Extension tests use `tests/vscode-mock.ts`; passing these tests does not establish actual Webview rendering or desktop interaction behavior.
+- Run `pnpm check` for application changes. Run real integration tests for changes affecting extension activation, Webview initialization, resource rendering, or source/preview synchronization when VS Code is available.
+- `tests/vscode.integration.ts` checks mounting the prototype, nested Canvas and image rendering, source/preview switching, external document edits, and invalid-JSON recovery. Manually verify drag/resize, connections, Outliner interactions, and inspector changes for affected UI behavior.
+- Report checks performed and any unavailable integration or manual validation. Documentation-only changes need relevant content and formatting checks, without rerunning unrelated application tests.
+
+## Commit & Pull Request Guidelines
+
+Use concise, imperative subjects, such as `Add group hierarchy regression coverage`, and keep commits focused. Do not assume Git metadata or a configured remote is available in this workspace.
+
+Pull requests should describe the change, its purpose, and validation performed. Link relevant issues when available and include screenshots for visual changes. Call out new dependencies or configuration requirements.
+
+## Security & Configuration
+
+- Keep credentials, tokens, and private data out of source files, fixtures, and logs. Provide placeholder configuration examples and document any new environment variables.
+- Resolve file references relative to the current Canvas first, then workspace roots. Restrict resource access to the current Canvas directory or opened workspace roots, including canonical-path checks to prevent symlink escapes.
+- Preserve Webview content-security restrictions and use VS Code Webview resource URIs for local assets. Treat Canvas contents and extension metadata as untrusted input.
+- Avoid modifying generated bundles directly; change source files and rebuild. Avoid committing local logs, temporary test profiles, or packaged `.vsix` files.

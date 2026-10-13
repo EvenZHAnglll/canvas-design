@@ -1,0 +1,175 @@
+{
+  "nodes": [
+    {
+      "id": "screen",
+      "type": "group",
+      "x": 0,
+      "y": 0,
+      "width": 880,
+      "height": 650,
+      "label": "01 / Dashboard prototype",
+      "canvasStudio": {
+        "fill": "#e9edf5",
+        "stroke": "#c9d2e2",
+        "radius": 24
+      }
+    },
+    {
+      "id": "navigation",
+      "type": "text",
+      "x": 28,
+      "y": 28,
+      "width": 824,
+      "height": 60,
+      "text": "\u25c8  FORMA                         Overview       Projects       Team",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#ffffff",
+        "stroke": "#e2e7f0",
+        "radius": 12,
+        "fontSize": 17
+      }
+    },
+    {
+      "id": "heading",
+      "type": "text",
+      "x": 28,
+      "y": 108,
+      "width": 540,
+      "height": 84,
+      "text": "Your workspace, at a glance.\nDesign the next thing together.",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#f5f7fb",
+        "stroke": "#e9edf5",
+        "radius": 12,
+        "fontSize": 21
+      }
+    },
+    {
+      "id": "avatar",
+      "type": "text",
+      "x": 782,
+      "y": 120,
+      "width": 64,
+      "height": 64,
+      "text": "YZ",
+      "canvasStudio": {
+        "shape": "ellipse",
+        "fill": "#eee9ff",
+        "stroke": "#b6a7ef",
+        "radius": 12,
+        "fontSize": 18
+      }
+    },
+    {
+      "id": "metric-projects",
+      "type": "text",
+      "x": 28,
+      "y": 216,
+      "width": 252,
+      "height": 102,
+      "text": "Active projects\n12",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#ffffff",
+        "stroke": "#e2e7f0",
+        "radius": 12,
+        "fontSize": 21
+      }
+    },
+    {
+      "id": "metric-components",
+      "type": "text",
+      "x": 300,
+      "y": 216,
+      "width": 252,
+      "height": 102,
+      "text": "Components\n48",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#ffffff",
+        "stroke": "#e2e7f0",
+        "radius": 12,
+        "fontSize": 21
+      }
+    },
+    {
+      "id": "metric-feedback",
+      "type": "text",
+      "x": 572,
+      "y": 216,
+      "width": 280,
+      "height": 102,
+      "text": "Ready for feedback\n03",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#eee9ff",
+        "stroke": "#d8cff5",
+        "radius": 12,
+        "fontSize": 21
+      }
+    },
+    {
+      "id": "local-image",
+      "type": "file",
+      "file": "assets/analytics.svg",
+      "x": 28,
+      "y": 342,
+      "width": 510,
+      "height": 274
+    },
+    {
+      "id": "referenced-component",
+      "type": "file",
+      "file": "components/share-card.canvas",
+      "x": 562,
+      "y": 342,
+      "width": 290,
+      "height": 274
+    },
+    {
+      "id": "note",
+      "type": "text",
+      "x": 956,
+      "y": 54,
+      "width": 310,
+      "height": 175,
+      "text": "DESIGN NOTES\n\nThe chart is a local SVG image.\nThe card is a referenced Canvas.\nAgent edits stay in the same files.",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#fff8e7",
+        "stroke": "#ecd69e",
+        "radius": 12,
+        "fontSize": 15
+      }
+    },
+    {
+      "id": "agent-note",
+      "type": "text",
+      "x": 956,
+      "y": 295,
+      "width": 310,
+      "height": 138,
+      "text": "AGENT HANDOFF\n\nKeep node IDs stable.\nReview the JSON source in VS Code.",
+      "canvasStudio": {
+        "shape": "rectangle",
+        "fill": "#f0edff",
+        "stroke": "#c8bdf2",
+        "radius": 12,
+        "fontSize": 16
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "handoff-flow",
+      "fromNode": "note",
+      "fromSide": "bottom",
+      "toNode": "agent-note",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "label": "Review together"
+    }
+  ]
+}

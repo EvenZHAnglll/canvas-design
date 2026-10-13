@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="500" height="260" viewBox="0 0 500 260">
+  <rect width="500" height="260" rx="14" fill="#ffffff"/>
+  <text x="28" y="36" font-family="sans-serif" font-size="13" font-weight="600" fill="#38465d">Activity overview</text>
+  <text x="28" y="57" font-family="sans-serif" font-size="10" fill="#98a1b2">A local SVG asset, referenced by the Canvas</text>
+  <g stroke="#eef1f6"><path d="M28 90H475 M28 130H475 M28 170H475 M28 210H475"/></g>
+  <path d="M28 200L78 175L128 184L178 142L228 157L278 115L328 130L378 95L428 110L475 75V210H28Z" fill="#f0edff"/>
+  <path d="M28 200L78 175L128 184L178 142L228 157L278 115L328 130L378 95L428 110L475 75" fill="none" stroke="#8a76e8" stroke-width="3" stroke-linejoin="round"/>
+  <g fill="#a1a9b8" font-family="sans-serif" font-size="10"><text x="28" y="235">Mon</text><text x="170" y="235">Wed</text><text x="320" y="235">Fri</text><text x="457" y="235">Sun</text></g>
+</svg>

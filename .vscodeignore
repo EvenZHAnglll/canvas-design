@@ -1,0 +1,9 @@
+.vscode/**
+src/**
+tests/**
+scripts/**
+node_modules/**
+.test-build/**
+logs/**
+tsconfig.json
+pnpm-lock.yaml

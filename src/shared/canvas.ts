@@ -1,3 +1,5 @@
+import { parseHexColor } from './colors';
+
 export type NodeType = 'text' | 'file' | 'link' | 'group';
 export type Side = 'top' | 'right' | 'bottom' | 'left';
 export interface DesignStyle {
@@ -173,11 +175,14 @@ export function getStyle(node: CanvasNode) {
   const palette = ['#ef6666', '#ed9f48', '#e4c65b', '#63bb8b', '#609be4', '#9a82db'];
   const base = node.color && (/^[1-6]$/.test(node.color) ? palette[Number(node.color) - 1] : node.color);
   const style = node.canvasStudio ?? {};
-  const hex = (value: unknown, fallback: string) => typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : fallback;
+  const hex = (value: unknown, fallback: string) =>
+    typeof value === 'string' && parseHexColor(value) ? value : fallback;
+  const fill = hex(style.fill, node.type === 'group' ? '#e9edf5' : '#ffffff');
   const number = (value: unknown, fallback: number, max: number) => typeof value === 'number' && Number.isFinite(value) ? Math.max(0, Math.min(value, max)) : fallback;
   return {
     shape: style.shape === 'ellipse' ? 'ellipse' : 'rectangle',
-    fill: hex(style.fill, node.type === 'group' ? '#e9edf5' : '#ffffff'),
+    // Preserve legacy group translucency; explicit alpha is used as authored.
+    fill: node.type === 'group' && fill.length === 7 ? `${fill}50` : fill,
     stroke: hex(style.stroke, base || '#c9d2e2'),
     radius: number(style.radius, 12, 256),
     fontSize: number(style.fontSize, 16, 256),

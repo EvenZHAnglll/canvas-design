@@ -8,7 +8,9 @@
 
 使用 JSON Canvas 1.0 的 `nodes` 和 `edges`，支持 `text`、`file`、`link`、`group` 四种标准节点。位置、尺寸、连线和文件引用均使用标准字段。未知字段在编辑后保留。
 
-视觉扩展放在节点的 `canvasStudio` 对象中：`shape` 为 `rectangle` 或 `ellipse`，`fill`、`stroke` 使用十六进制颜色，`radius`、`fontSize` 为数字。图形仍是标准 `text` 节点，其他阅读器可以显示其文本。扩展字段的完整视觉效果需要本插件。
+视觉扩展放在节点的 `canvasStudio` 对象中：`shape` 为 `rectangle` 或 `ellipse`，`fill`、`stroke` 使用 `#RRGGBB` 或含透明度的 `#RRGGBBAA`，`radius`、`fontSize` 为数字。标准 `color` 字段仍只接受 JSON Canvas 的 1–6 或六位十六进制颜色。图形仍是标准 `text` 节点，其他阅读器可以显示其文本。扩展字段的完整视觉效果需要本插件。
+
+Details 的 Fill、Stroke 各保持单行当前色值和圆形色样。点击色样打开浮动取色面板，面板内显示低饱和度预设色、透明色快捷选项，以及 R/G/B（0–255）与 A（0–1）数值输入。弹层使用原生 Popover 顶层，不受侧栏滚动容器裁切；点击外部、关闭按钮或 Escape 关闭，切换检查对象也会关闭。改色及文档确认期间保持弹层打开。预设色使用不透明颜色；透明选项保留 RGB 并将 A 设为 0。颜色修改保存为八位十六进制，画布与嵌套 SVG 预览共用颜色解析。旧分组的六位填充色保留原有约 31% 的不透明度；显式八位颜色直接使用其 alpha，不再叠加默认透明度。界面以两位小数显示 A，文件保留八位颜色的 alpha 精度。
 
 PNG 和 `.canvas` 文件节点直接显示引用内容，不绘制节点背景、边框、阴影或圆角，透明像素及引用画布中的空白区域透出下层内容；嵌套 Canvas 预览遵循同一规则。引用画布保留自身节点的外观，不额外添加卡片或内容内边距。已有样式字段仍保留在文件中，但这些引用节点不应用卡片外观，也不显示对应的属性控件。选中轮廓和调整尺寸的手柄仅用于编辑。
 
@@ -21,6 +23,7 @@ PNG 和 `.canvas` 文件节点直接显示引用内容，不绘制节点背景�
 - `src/extension.ts`：注册 `CustomTextEditorProvider`，负责 VS Code 文档、文件选择、资源访问、源码切换。
 - `src/shared/`：JSON Canvas 校验、编辑操作和消息类型。
 - `src/webview/main.ts`：DOM 界面、左侧 Outliner、右侧 Details、工具栏与编辑会话。
+- `src/webview/color-field.ts`：预设色板与 RGBA 数值控件；`src/shared/colors.ts` 提供安全的十六进制颜色转换。
 - `src/webview/flow.tsx`：React Flow 画布、对象交互、连线与嵌套 SVG 预览。
 - `src/webview/style.css`：三栏布局与 VS Code 主题配色。
 

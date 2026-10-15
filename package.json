@@ -67,6 +67,7 @@
     "format:check": "prettier --check src tests scripts docs .vscode README.md package.json tsconfig.json",
     "build": "node scripts/build.mjs",
     "package": "pnpm build && node scripts/package.mjs",
+    "licenses:generate": "node scripts/third-party-notices.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",

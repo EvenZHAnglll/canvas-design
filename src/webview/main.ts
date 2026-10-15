@@ -2,6 +2,7 @@ import './style.css';
 import { applyOperation, getStyle, isFramelessFileNode, type AssetPreview, type CanvasData, type CanvasNode, type CanvasState, type Operation } from '../shared/canvas';
 import { EditSession } from '../shared/edit-session';
 import { createCanvasRenderer } from './flow';
+import { colorField, syncColorPickerOwner } from './color-field';
 import { descendantIds, getHierarchy, nodeName, type MoveNode } from '../shared/hierarchy';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; getState(): unknown; setState(state: unknown): void };
@@ -325,6 +326,8 @@ function field(label: string, value: string | number, type: string, change: (val
   input.addEventListener('change', () => change(input.value)); row.append(input); return row;
 }
 function renderInspector() {
+  const inspectedNode = !invalid && selection.size === 1 ? data.nodes.find(item => selection.has(item.id)) : undefined;
+  syncColorPickerOwner(inspectedNode && !isFramelessFileNode(inspectedNode) ? inspectedNode.id : undefined);
   properties.replaceChildren();
   document.getElementById('selection-count')!.textContent = selection.size > 1 ? `${selection.size} selected` : '';
   if (!selection.size || invalid) {
@@ -334,7 +337,7 @@ function renderInspector() {
   if (selection.size > 1) {
     properties.append(element('h3', 'property-title', `${selection.size} objects selected`), element('p', 'muted', 'Drag to move together. Use Delete to remove, or Ctrl/Cmd + D to duplicate.')); return;
   }
-  const node = data.nodes.find(item => selection.has(item.id))!;
+  const node = inspectedNode!;
   const style = getStyle(node);
   const patch = (fields: Partial<CanvasNode>) => commit({ type: 'updateNodes', updates: [{ id: node.id, patch: fields }] });
   properties.append(element('h3', 'property-title', nodeName(node)));
@@ -348,7 +351,10 @@ function renderInspector() {
   properties.append(coordinates);
   if (!isFramelessFileNode(node)) {
     properties.append(element('h4', 'section-title', 'Appearance'));
-    properties.append(field('Fill', style.fill, 'color', value => patch({ canvasStudio: { fill: value } })), field('Stroke', style.stroke, 'color', value => patch({ canvasStudio: { stroke: value } })));
+    properties.append(
+      colorField(node.id, 'Fill', style.fill, value => patch({ canvasStudio: { fill: value } })),
+      colorField(node.id, 'Stroke', style.stroke, value => patch({ canvasStudio: { stroke: value } })),
+    );
     if (style.shape !== 'ellipse') properties.append(field('Corner radius', style.radius, 'number', value => patch({ canvasStudio: { radius: Math.max(0, Math.min(256, Number(value) || 0)) } })));
   }
   if (node.type === 'text') properties.append(field('Font size', style.fontSize, 'number', value => patch({ canvasStudio: { fontSize: Math.max(1, Math.min(256, Number(value) || 16)) } })));

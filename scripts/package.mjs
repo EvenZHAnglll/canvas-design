@@ -2,6 +2,7 @@ import { mkdtemp, mkdir, readFile, writeFile, copyFile, rm } from 'node:fs/promi
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
+import { generateThirdPartyNotices } from './third-party-notices.mjs';
 
 // Offline local packaging. Runtime dependencies are already bundled by esbuild.
 // Requires the zip CLI (included in macOS and commonly available on Linux).
@@ -23,11 +24,13 @@ const xml = (value) =>
   );
 
 try {
+  await generateThirdPartyNotices();
   await mkdir(path.join(staging, 'extension', 'dist'), { recursive: true });
   for (const file of [
     'package.json',
     'README.md',
     'LICENSE',
+    'THIRD_PARTY_NOTICES.txt',
     'dist/extension.cjs',
     'dist/webview.js',
     'dist/webview.css',
@@ -44,6 +47,7 @@ try {
   <Default Extension="js" ContentType="application/javascript" />
   <Default Extension="css" ContentType="text/css" />
   <Default Extension="md" ContentType="text/markdown" />
+  <Default Extension="txt" ContentType="text/plain" />
   <Override PartName="/extension/LICENSE" ContentType="text/plain" />
 </Types>
 `,

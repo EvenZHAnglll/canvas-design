@@ -36,7 +36,7 @@ function MiniCanvas({ preview }: { preview: AssetPreview }) {
     {canvas.nodes.map(node => {
       const style = getStyle(node); const asset = preview.assets?.[node.id];
       return <g key={node.id}>
-        {!isFramelessFileNode(node) && (style.shape === 'ellipse' ? <ellipse cx={node.x + node.width / 2} cy={node.y + node.height / 2} rx={node.width / 2} ry={node.height / 2} fill={style.fill} stroke={style.stroke} /> : <rect x={node.x} y={node.y} width={node.width} height={node.height} rx={style.radius} fill={style.fill} fillOpacity={node.type === 'group' ? .3 : 1} stroke={style.stroke} />)}
+        {!isFramelessFileNode(node) && (style.shape === 'ellipse' ? <ellipse cx={node.x + node.width / 2} cy={node.y + node.height / 2} rx={node.width / 2} ry={node.height / 2} fill={style.fill} stroke={style.stroke} /> : <rect x={node.x} y={node.y} width={node.width} height={node.height} rx={style.radius} fill={style.fill} stroke={style.stroke} />)}
         {asset?.canvas ? <svg x={node.x} y={node.y} width={node.width} height={node.height}><MiniCanvas preview={asset} /></svg> : asset?.uri ? <image x={node.x} y={node.y} width={node.width} height={node.height} href={asset.uri} preserveAspectRatio="xMidYMid meet" /> : <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}><div className={node.type === 'group' ? 'mini-label' : 'mini-text'} style={{ fontSize: style.fontSize }}>{node.text ?? node.label ?? node.file ?? node.url ?? ''}</div></foreignObject>}
       </g>;
     })}
@@ -57,7 +57,7 @@ function DesignNode({ data, selected }: NodeProps<StudioNode>) {
     actions.onCommit({ type: 'updateNodes', updates: [{ id: node.id, patch: node.type === 'group' ? { label: value } : { text: value } }] });
   };
   useEffect(() => { if (text !== undefined && actions.version !== editVersion.current) setText(undefined); }, [actions.version]);
-  const boxStyle = frameless ? undefined : { backgroundColor: node.type === 'group' ? `${style.fill}50` : style.fill, borderColor: style.stroke, borderRadius: style.shape === 'ellipse' ? '50%' : style.radius, fontSize: style.fontSize };
+  const boxStyle = frameless ? undefined : { backgroundColor: style.fill, borderColor: style.stroke, borderRadius: style.shape === 'ellipse' ? '50%' : style.radius, fontSize: style.fontSize };
   return <>
     <NodeResizer isVisible={selected && actions.tool === 'select' && text === undefined} minWidth={20} minHeight={20} color="var(--accent)" onResizeStart={() => { resizeVersion.current = actions.version; }} onResizeEnd={(_, size) => {
       if (actions.version !== resizeVersion.current) { actions.onNotice('The file changed; resize cancelled.'); return; }

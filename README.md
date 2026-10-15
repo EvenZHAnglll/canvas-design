@@ -74,9 +74,13 @@ Double-click text to edit it. Press **Cmd/Ctrl+Enter** to finish, or **Escape** 
 
 Use the **Outliner** to browse the scene and drag objects to reorder them or change group membership. The top of the Outliner represents the front of the canvas. Dragging a group moves its descendants; deleting a group also removes its descendants and their connections.
 
+Use the chevron in each sidebar heading to hide **Outliner** or **Details** independently and give the canvas more space. Restore them using the small sidebar icons in the canvas's top-left and top-right corners. The editor remembers which panels are hidden; restoring a panel keeps its contents and current selection.
+
 ### Add images and nested canvases
 
 The image, Canvas, and file buttons open a local file picker. References must stay within the current canvas directory or an open workspace. Paths are resolved relative to the current `.canvas` file first, then relative to workspace roots.
+
+PNG and `.canvas` file nodes have no background, border, shadow, or rounded corners. PNG transparency and empty areas in referenced canvases show the layers underneath, including in nested Canvas previews. Referenced canvases keep their own node styles, without an extra card or inset around their content. These nodes retain selection outlines and resize handles; their Details panel omits card appearance controls.
 
 Nested canvases show a preview of the referenced file. Double-click one to open its source canvas for editing. Changes to the child file refresh its parent preview.
 

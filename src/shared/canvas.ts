@@ -164,6 +164,11 @@ export function bounds(nodes: CanvasNode[]): { x: number; y: number; width: numb
   return { x, y, width: right - x, height: bottom - y };
 }
 
+/** PNG and Canvas references display their own content without a surrounding card. */
+export function isFramelessFileNode(node: CanvasNode): boolean {
+  return node.type === 'file' && /\.(png|canvas)$/i.test(node.file ?? '');
+}
+
 export function getStyle(node: CanvasNode) {
   const palette = ['#ef6666', '#ed9f48', '#e4c65b', '#63bb8b', '#609be4', '#9a82db'];
   const base = node.color && (/^[1-6]$/.test(node.color) ? palette[Number(node.color) - 1] : node.color);

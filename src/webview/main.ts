@@ -1,5 +1,5 @@
 import './style.css';
-import { applyOperation, getStyle, type AssetPreview, type CanvasData, type CanvasNode, type CanvasState, type Operation } from '../shared/canvas';
+import { applyOperation, getStyle, isFramelessFileNode, type AssetPreview, type CanvasData, type CanvasNode, type CanvasState, type Operation } from '../shared/canvas';
 import { EditSession } from '../shared/edit-session';
 import { createCanvasRenderer } from './flow';
 import { descendantIds, getHierarchy, nodeName, type MoveNode } from '../shared/hierarchy';
@@ -19,17 +19,24 @@ let loaded = false;
 let invalid = false;
 let draggedNode: { id: string; version: number } | undefined;
 let toastTimer: ReturnType<typeof setTimeout>;
-const saved = vscode.getState() as { x?: number; y?: number; zoom?: number; collapsed?: string[]; expandedReferences?: string[] } | undefined;
+const saved = vscode.getState() as { x?: number; y?: number; zoom?: number; collapsed?: string[]; expandedReferences?: string[]; outlinerHidden?: boolean; detailsHidden?: boolean } | undefined;
 const collapsed = new Set(saved?.collapsed ?? []);
 const expandedReferences = new Set(saved?.expandedReferences ?? []);
+const sidebarHidden = { outliner: saved?.outlinerHidden === true, details: saved?.detailsHidden === true };
+function sidebarIcon(side: 'outliner' | 'details'): string {
+  const divider = side === 'outliner' ? 9 : 15;
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M${divider} 4v16"/></svg>`;
+}
 let camera = { x: saved?.x ?? 70, y: saved?.y ?? 70, zoom: saved?.zoom ?? 1 };
 const app = document.getElementById('app')!;
 app.innerHTML = `
   <div class="workspace">
-  <aside class="outliner-sidebar" aria-label="Outliner sidebar">
-    <section id="outliner-panel"><div class="panel-heading">Outliner <span id="node-count">0 objects</span></div><div id="scene-root" tabindex="0" title="Drop here to move to the scene root">Scene</div><div id="outliner" role="tree" aria-label="Scene nodes"></div><div class="outliner-hint">Top = front · Drop on a group to nest</div></section>
+  <aside id="outliner-sidebar" class="outliner-sidebar" aria-label="Outliner sidebar">
+    <section id="outliner-panel"><div class="panel-heading"><span>Outliner</span><span id="node-count">0 objects</span><button id="hide-outliner" class="sidebar-button panel-collapse" title="Hide Outliner" aria-label="Hide Outliner" aria-controls="outliner-sidebar" aria-expanded="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m14 7-5 5 5 5"/></svg></button></div><div id="scene-root" tabindex="0" title="Drop here to move to the scene root">Scene</div><div id="outliner" role="tree" aria-label="Scene nodes"></div><div class="outliner-hint">Top = front · Drop on a group to nest</div></section>
   </aside>
   <main id="stage" tabindex="0" aria-label="Design canvas">
+    <button id="show-outliner" class="sidebar-button panel-restore outliner-restore" title="Show Outliner" aria-label="Show Outliner" aria-controls="outliner-sidebar" aria-expanded="false" hidden>${sidebarIcon('outliner')}</button>
+    <button id="show-details" class="sidebar-button panel-restore details-restore" title="Show Details" aria-label="Show Details" aria-controls="details-sidebar" aria-expanded="false" hidden>${sidebarIcon('details')}</button>
     <div class="toolbar" role="toolbar" aria-label="Canvas tools">
       <button data-tool="select" title="Select (V)" aria-label="Select">↖</button><button data-tool="hand" title="Pan (H or hold Space)" aria-label="Pan">✋</button><i></i>
       <button data-tool="rectangle" title="Rounded rectangle (R)" aria-label="Rounded rectangle">▢</button><button data-tool="ellipse" title="Ellipse (O)" aria-label="Ellipse">○</button><button data-tool="text" title="Text (T)" aria-label="Text">T</button><button data-tool="group" title="Group (G)" aria-label="Group">▤</button><button data-tool="connect" title="Connect two nodes (C)" aria-label="Connect">↗</button><i></i>
@@ -40,8 +47,8 @@ app.innerHTML = `
     <div id="error" hidden><h2>Unable to display this Canvas</h2><p id="error-message"></p><button id="error-source">Open JSON source</button></div>
     <div class="statusbar"><span id="hint">Drag to move · Scroll to pan · Pinch to zoom</span><div class="status-actions"><button id="source" title="Open JSON source" aria-label="Open JSON source">&lt;/&gt;</button><div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="Zoom in">+</button><button id="fit" title="Fit all nodes (F)">Fit</button></div></div></div>
     <div id="toast" role="status" hidden></div>
-  </main><aside class="inspector" aria-label="Details sidebar">
-    <section id="details-panel"><div class="panel-heading">Details <span id="selection-count"></span></div><div id="properties"></div></section>
+  </main><aside id="details-sidebar" class="inspector" aria-label="Details sidebar">
+    <section id="details-panel"><div class="panel-heading"><span>Details</span><span id="selection-count"></span><button id="hide-details" class="sidebar-button panel-collapse" title="Hide Details" aria-label="Hide Details" aria-controls="details-sidebar" aria-expanded="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m10 7 5 5-5 5"/></svg></button></div><div id="properties"></div></section>
   </aside></div>`;
 const stage = document.getElementById('stage')!;
 const properties = document.getElementById('properties')!;
@@ -73,7 +80,24 @@ function updateCamera() {
   document.getElementById('zoom-label')!.textContent = `${Math.round(camera.zoom * 100)}%`;
   persistState();
 }
-function persistState() { vscode.setState({ ...camera, collapsed: [...collapsed], expandedReferences: [...expandedReferences] }); }
+function persistState() { vscode.setState({ ...camera, collapsed: [...collapsed], expandedReferences: [...expandedReferences], outlinerHidden: sidebarHidden.outliner, detailsHidden: sidebarHidden.details }); }
+function renderSidebarVisibility() {
+  for (const side of ['outliner', 'details'] as const) {
+    const hidden = sidebarHidden[side];
+    document.getElementById(`${side}-sidebar`)!.hidden = hidden;
+    document.getElementById(`show-${side}`)!.hidden = !hidden;
+    stage.dataset[`${side}Hidden`] = String(hidden);
+    for (const action of ['hide', 'show']) {
+      document.getElementById(`${action}-${side}`)!.setAttribute('aria-expanded', String(!hidden));
+    }
+  }
+}
+function setSidebarHidden(side: 'outliner' | 'details', hidden: boolean) {
+  sidebarHidden[side] = hidden;
+  renderSidebarVisibility();
+  persistState();
+  document.getElementById(`${hidden ? 'show' : 'hide'}-${side}`)!.focus();
+}
 function fit() { renderer.fit(); }
 function zoom(factor: number) { renderer.zoom(factor); }
 function setTool(value: Tool) {
@@ -321,9 +345,12 @@ function renderInspector() {
       patch({ [key]: key === 'width' || key === 'height' ? Math.max(20, number) : number });
     }));
   }
-  properties.append(coordinates, element('h4', 'section-title', 'Appearance'));
-  properties.append(field('Fill', style.fill, 'color', value => patch({ canvasStudio: { fill: value } })), field('Stroke', style.stroke, 'color', value => patch({ canvasStudio: { stroke: value } })));
-  if (style.shape !== 'ellipse') properties.append(field('Corner radius', style.radius, 'number', value => patch({ canvasStudio: { radius: Math.max(0, Math.min(256, Number(value) || 0)) } })));
+  properties.append(coordinates);
+  if (!isFramelessFileNode(node)) {
+    properties.append(element('h4', 'section-title', 'Appearance'));
+    properties.append(field('Fill', style.fill, 'color', value => patch({ canvasStudio: { fill: value } })), field('Stroke', style.stroke, 'color', value => patch({ canvasStudio: { stroke: value } })));
+    if (style.shape !== 'ellipse') properties.append(field('Corner radius', style.radius, 'number', value => patch({ canvasStudio: { radius: Math.max(0, Math.min(256, Number(value) || 0)) } })));
+  }
   if (node.type === 'text') properties.append(field('Font size', style.fontSize, 'number', value => patch({ canvasStudio: { fontSize: Math.max(1, Math.min(256, Number(value) || 16)) } })));
   if (node.type === 'text' || node.type === 'group') {
     properties.append(element('h4', 'section-title', node.type === 'group' ? 'Label' : 'Content'));
@@ -383,5 +410,10 @@ document.getElementById('fit')!.onclick = fit;
 document.getElementById('zoom-in')!.onclick = () => zoom(1.2);
 document.getElementById('zoom-out')!.onclick = () => zoom(1 / 1.2);
 document.getElementById('first-shape')!.onclick = () => { const p = center(); addShape('rectangle', p.x - 110, p.y - 70, 220, 140); };
+for (const side of ['outliner', 'details'] as const) {
+  document.getElementById(`hide-${side}`)!.onclick = () => setSidebarHidden(side, true);
+  document.getElementById(`show-${side}`)!.onclick = () => setSidebarHidden(side, false);
+}
+renderSidebarVisibility();
 renderer = createCanvasRenderer(document.getElementById('flow')!, camera);
 setTool('select'); render(); post({ type: 'ready' });

@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { applyOperation, bounds, getStyle, parseCanvas, serializeCanvas, type CanvasData } from '../src/shared/canvas';
+import { applyOperation, bounds, getStyle, isFramelessFileNode, parseCanvas, serializeCanvas, type CanvasData } from '../src/shared/canvas';
 
 const fixture = (): CanvasData => ({
   custom: { revision: 'agent' },
@@ -65,4 +65,31 @@ test('style normalizes untrusted extensions and maps JSON Canvas palette colors'
   node.color = '6'; node.canvasStudio = { radius: -100, fontSize: Infinity, fill: 'url(bad)', shape: 'ellipse' };
   const style = getStyle(node);
   assert.equal(style.stroke, '#9a82db'); assert.equal(style.fill, '#ffffff'); assert.equal(style.radius, 0); assert.equal(style.fontSize, 16); assert.equal(style.shape, 'ellipse');
+});
+
+test('PNG and Canvas file references use frameless rendering, including uppercase extensions and subpaths', () => {
+  const image = { ...fixture().nodes[1], file: 'assets/transparent.PNG', subpath: '#preview' };
+  assert.equal(isFramelessFileNode(image), true);
+  for (const file of [
+    'assets/transparent.png',
+    'child.canvas',
+    'components/child.CANVAS',
+    'image.png.canvas',
+  ]) {
+    assert.equal(isFramelessFileNode({ ...image, file }), true);
+  }
+  for (const file of [
+    'photo.jpg',
+    'icon.svg',
+    'child.canvas.json',
+    'image.png.canvas.md',
+    'image.png/notes',
+  ]) {
+    assert.equal(isFramelessFileNode({ ...image, file }), false);
+  }
+  assert.equal(isFramelessFileNode({ ...image, type: 'group', background: image.file }), false);
+  assert.equal(
+    isFramelessFileNode({ ...image, type: 'link', url: 'https://example.com/image.png' }),
+    false,
+  );
 });

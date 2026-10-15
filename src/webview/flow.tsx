@@ -2,7 +2,7 @@ import { createContext, useContext, useEffect, useRef, useState, useCallback } f
 import { createRoot } from 'react-dom/client';
 import { ReactFlow, ReactFlowProvider, Background, Handle, Position, NodeResizer, ConnectionMode, MarkerType, applyNodeChanges, useReactFlow, type Node, type Edge, type NodeProps, type Viewport, type ReactFlowInstance, type NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import { bounds, getStyle, type AssetPreview, type CanvasData, type CanvasNode, type Operation, type Side } from '../shared/canvas';
+import { bounds, getStyle, isFramelessFileNode, type AssetPreview, type CanvasData, type CanvasNode, type Operation, type Side } from '../shared/canvas';
 import { descendantIds, getHierarchy } from '../shared/hierarchy';
 
 type StudioNode = Node<{ canvas: CanvasNode; asset?: AssetPreview }, 'canvas'>;
@@ -36,8 +36,8 @@ function MiniCanvas({ preview }: { preview: AssetPreview }) {
     {canvas.nodes.map(node => {
       const style = getStyle(node); const asset = preview.assets?.[node.id];
       return <g key={node.id}>
-        {style.shape === 'ellipse' ? <ellipse cx={node.x + node.width / 2} cy={node.y + node.height / 2} rx={node.width / 2} ry={node.height / 2} fill={style.fill} stroke={style.stroke} /> : <rect x={node.x} y={node.y} width={node.width} height={node.height} rx={style.radius} fill={style.fill} fillOpacity={node.type === 'group' ? .3 : 1} stroke={style.stroke} />}
-        {asset?.canvas ? <svg x={node.x + 8} y={node.y + 8} width={Math.max(1, node.width - 16)} height={Math.max(1, node.height - 16)}><MiniCanvas preview={asset} /></svg> : asset?.uri ? <image x={node.x} y={node.y} width={node.width} height={node.height} href={asset.uri} preserveAspectRatio="xMidYMid meet" /> : <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}><div className={node.type === 'group' ? 'mini-label' : 'mini-text'} style={{ fontSize: style.fontSize }}>{node.text ?? node.label ?? node.file ?? node.url ?? ''}</div></foreignObject>}
+        {!isFramelessFileNode(node) && (style.shape === 'ellipse' ? <ellipse cx={node.x + node.width / 2} cy={node.y + node.height / 2} rx={node.width / 2} ry={node.height / 2} fill={style.fill} stroke={style.stroke} /> : <rect x={node.x} y={node.y} width={node.width} height={node.height} rx={style.radius} fill={style.fill} fillOpacity={node.type === 'group' ? .3 : 1} stroke={style.stroke} />)}
+        {asset?.canvas ? <svg x={node.x} y={node.y} width={node.width} height={node.height}><MiniCanvas preview={asset} /></svg> : asset?.uri ? <image x={node.x} y={node.y} width={node.width} height={node.height} href={asset.uri} preserveAspectRatio="xMidYMid meet" /> : <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}><div className={node.type === 'group' ? 'mini-label' : 'mini-text'} style={{ fontSize: style.fontSize }}>{node.text ?? node.label ?? node.file ?? node.url ?? ''}</div></foreignObject>}
       </g>;
     })}
   </svg>;
@@ -46,6 +46,7 @@ function MiniCanvas({ preview }: { preview: AssetPreview }) {
 function DesignNode({ data, selected }: NodeProps<StudioNode>) {
   const actions = useContext(Actions)!;
   const node = data.canvas; const asset = data.asset; const style = getStyle(node);
+  const frameless = isFramelessFileNode(node);
   const [text, setText] = useState<string | undefined>();
   const editVersion = useRef(-1); const resizeVersion = useRef(-1);
   const finishText = (save: boolean) => {
@@ -56,13 +57,13 @@ function DesignNode({ data, selected }: NodeProps<StudioNode>) {
     actions.onCommit({ type: 'updateNodes', updates: [{ id: node.id, patch: node.type === 'group' ? { label: value } : { text: value } }] });
   };
   useEffect(() => { if (text !== undefined && actions.version !== editVersion.current) setText(undefined); }, [actions.version]);
-  const boxStyle = { backgroundColor: node.type === 'group' ? `${style.fill}50` : style.fill, borderColor: style.stroke, borderRadius: style.shape === 'ellipse' ? '50%' : style.radius, fontSize: style.fontSize };
+  const boxStyle = frameless ? undefined : { backgroundColor: node.type === 'group' ? `${style.fill}50` : style.fill, borderColor: style.stroke, borderRadius: style.shape === 'ellipse' ? '50%' : style.radius, fontSize: style.fontSize };
   return <>
     <NodeResizer isVisible={selected && actions.tool === 'select' && text === undefined} minWidth={20} minHeight={20} color="var(--accent)" onResizeStart={() => { resizeVersion.current = actions.version; }} onResizeEnd={(_, size) => {
       if (actions.version !== resizeVersion.current) { actions.onNotice('The file changed; resize cancelled.'); return; }
       actions.onCommit({ type: 'updateNodes', updates: [{ id: node.id, patch: { x: Math.round(size.x), y: Math.round(size.y), width: Math.round(size.width), height: Math.round(size.height) } }] });
     }} />
-    <div className={`flow-node ${node.type}${selected ? ' selected' : ''}`} style={boxStyle} onDoubleClick={event => {
+    <div className={`flow-node ${node.type}${frameless ? ' frameless' : ''}${selected ? ' selected' : ''}`} style={boxStyle} onDoubleClick={event => {
       event.stopPropagation();
       if (node.type === 'text' || node.type === 'group') { editVersion.current = actions.version; setText(node.type === 'group' ? node.label ?? '' : node.text ?? ''); }
       else actions.onOpen(node.id);
@@ -115,7 +116,7 @@ function CanvasFlow({ options, initialViewport, initialized }: { options: Option
     <ReactFlow<StudioNode, Edge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onChanges} onSelectionChange={onSelection} onInit={initialized} defaultViewport={initialViewport} minZoom={.08} maxZoom={4}
       // Trackpad scrolling pans in both axes; macOS pinch wheel events zoom separately.
       panOnScroll={true} panOnScrollSpeed={1} zoomOnScroll={false} zoomOnPinch={true}
-      connectionMode={ConnectionMode.Loose} nodesDraggable={options.tool === 'select' && !options.invalid} nodesConnectable={options.tool === 'connect' && !options.invalid} elementsSelectable={!options.invalid && options.tool !== 'hand' && !drawing} panOnDrag={options.tool === 'hand' ? true : [1, 2]} panActivationKeyCode="Space" selectionOnDrag={options.tool === 'select'} multiSelectionKeyCode="Shift" deleteKeyCode={null} elevateNodesOnSelect={false} elevateEdgesOnSelect={false} onMove={(_, viewport) => options.onViewport(viewport)} onEdgeClick={(_, edge) => options.onEdgeSelect(edge.id)} onConnect={connection => {
+      connectionMode={ConnectionMode.Loose} nodesDraggable={options.tool === 'select' && !options.invalid} nodesConnectable={options.tool === 'connect' && !options.invalid} elementsSelectable={!options.invalid && options.tool !== 'hand' && !drawing} panOnDrag={options.tool === 'hand' ? true : [1, 2]} panActivationKeyCode="Space" selectionOnDrag={options.tool === 'select'} multiSelectionKeyCode="Shift" deleteKeyCode={null} zIndexMode="manual" elevateNodesOnSelect={false} elevateEdgesOnSelect={false} onMove={(_, viewport) => options.onViewport(viewport)} onEdgeClick={(_, edge) => options.onEdgeSelect(edge.id)} onConnect={connection => {
       if (connection.source && connection.target) options.onCommit({ type: 'addEdge', edge: { id: crypto.randomUUID(), fromNode: connection.source, toNode: connection.target, fromSide: connection.sourceHandle as Side, toSide: connection.targetHandle as Side, toEnd: 'arrow' } });
     }} onNodeDragStart={(_, anchor, selectedNodes) => {
       const tree = getHierarchy(options.data.nodes); const ids = new Set<string>();

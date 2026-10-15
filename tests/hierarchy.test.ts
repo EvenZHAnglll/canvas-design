@@ -48,3 +48,52 @@ test('deleting a group removes descendants and incident connections atomically',
   const result = applyOperation(data, { type: 'deleteNodes', ids: ['card'] });
   assert.deepEqual(result.nodes.map(item => item.id), ['screen', 'footer', 'outside']); assert.equal(result.edges.length, 0);
 });
+
+test('reordering overlapping PNG layers changes stacking order without changing geometry or styles', () => {
+  const background: CanvasNode = {
+    id: 'background',
+    type: 'text',
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 200,
+    text: 'Underneath',
+  };
+  const image: CanvasNode = {
+    id: 'overlay',
+    type: 'file',
+    file: 'transparent.png',
+    x: 0,
+    y: 0,
+    width: 200,
+    height: 200,
+    canvasStudio: { fill: '#ffffff', stroke: '#123456', radius: 24, vendor: 'keep' },
+  };
+  const data: CanvasData = { nodes: [background, image], edges: [] };
+  const behind = moveNode(data, {
+    type: 'moveNode',
+    id: image.id,
+    targetId: background.id,
+    placement: 'after',
+  });
+  assert.deepEqual(
+    behind.nodes.map((item) => item.id),
+    ['overlay', 'background'],
+  );
+  const inFront = moveNode(behind, {
+    type: 'moveNode',
+    id: image.id,
+    targetId: background.id,
+    placement: 'before',
+  });
+  assert.deepEqual(
+    inFront.nodes.map((item) => item.id),
+    ['background', 'overlay'],
+  );
+  const reordered = inFront.nodes.find((item) => item.id === image.id)!;
+  assert.deepEqual(reordered, {
+    ...image,
+    canvasStudio: { ...image.canvasStudio, parentId: null },
+  });
+  assert.deepEqual(data.nodes, [background, image]);
+});

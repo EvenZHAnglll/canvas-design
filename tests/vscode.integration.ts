@@ -9,6 +9,7 @@ interface Diagnostic {
   uri: string;
   ready: boolean;
   nodeCount?: number;
+  htmlCount?: number;
   nestedCount?: number;
   loadedImages?: number;
   invalid?: boolean;
@@ -115,6 +116,7 @@ export async function run() {
     width: 160,
     height: 80,
     text: 'Agent update',
+    canvasStudio: { type: 'html', html: '<div class="card">Agent HTML update</div>', css: '.card { padding: 12px; background: #19c37d; height: 100%; }' },
   });
   const edit = new vscode.WorkspaceEdit();
   edit.replace(
@@ -125,10 +127,14 @@ export async function run() {
   await vscode.workspace.applyEdit(edit);
   await vscode.commands.executeCommand('canvasStudio.openPreview', uri);
   await until(
-    () => api.getDiagnostics().some((item) => item.uri === uri.toString() && item.nodeCount === 12),
+    () => api.getDiagnostics().some((item) => item.uri === uri.toString() && item.nodeCount === 12 && item.htmlCount === 1),
     'Agent source edits were not reflected in the preview',
   );
   console.log('PASS: source / preview toggles and external document edits.');
+  const htmlScreenshotUri = vscode.Uri.joinPath(root, 'html-export.png');
+  await vscode.commands.executeCommand('canvasStudio.exportScreenshot', uri, htmlScreenshotUri);
+  assert.ok((await vscode.workspace.fs.stat(htmlScreenshotUri)).size > 10_000);
+  console.log('PASS: HTML text-node extension renders after source edits and exports with the Canvas.');
   const invalid = vscode.Uri.joinPath(root, 'invalid.canvas');
   await vscode.workspace.fs.writeFile(invalid, Buffer.from('{ broken'));
   await vscode.commands.executeCommand('vscode.open', invalid);

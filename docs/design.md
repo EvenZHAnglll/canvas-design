@@ -20,6 +20,18 @@ PNG 和 `.canvas` 文件节点直接显示引用内容，不绘制节点背景�
 
 嵌套 Canvas 使用 `file` 节点，`file` 指向另一个 `.canvas`。父画布保留引用，不复制子节点。预览按子画布的内容边界缩放，双击进入被引用的文件编辑。检测循环引用，最多展开四层。文件路径先相对当前 Canvas 解析，再尝试工作区根目录；只访问当前 Canvas 目录或已打开的工作区。
 
+## HTML 片段节点
+
+HTML 是编辑器中的独立类别，但保存为标准 `text` 节点。`text` 保存供其他 JSON Canvas 阅读器显示的备用文字，`canvasStudio.type` 为 `html`，`canvasStudio.html`、`canvasStudio.css` 分别保存 HTML 片段与样式；不新增顶层节点类型，不要求完整 HTML 文件。未知扩展字段仍按原样保留。扩展中的 HTML 缺失或不是字符串时显示备用文字，非法 CSS 不影响标准 Canvas 文档的打开。
+
+工具栏的 **<> HTML fragment**（`U`）支持点击或拖动创建节点。Details 分别编辑 HTML、CSS、Fallback text，离开字段后通过版本化编辑协议提交，沿用保存、撤销和重做；双击卡片聚焦 HTML 编辑区。节点支持原有位置、尺寸、层级、复制和连线操作。示例见 `examples/html-card.canvas`。
+
+`src/webview/html-preview.ts` 从 inert template 重建允许的静态 HTML 元素与属性，过滤脚本、事件、导航、iframe、SVG、图片和其他资源入口。CSS 经浏览器 CSSOM 解析，只保留普通样式、`@media` 和 `@supports`，过滤 URL、转义资源函数、import 和字体资源，不允许选择 shadow host。每个预览使用独立 Shadow DOM，外层固定尺寸、裁切并使用 CSS containment，保持作者颜色和样式不受编辑器主题影响；表单控件只展示，不接受交互。原始 HTML/CSS 保存在文件中，过滤仅发生在展示时，Webview CSP 不放宽。
+
+嵌套 Canvas 的 SVG foreignObject 使用相同渲染器。截图先将每个实际 HTML 预览栅格化为有尺寸限制的 PNG，再放进画布的离屏副本，避免 Shadow DOM 在复制或 SVG 序列化时丢失；不改变实时视口。
+
+`pnpm test:browser` 使用临时 Chrome/Chromium 配置和私有调试管道验证内容过滤、样式隔离、创建、属性编辑、源码同步、撤销重做、嵌套显示和 PNG 像素。可用 `CHROME_EXECUTABLE` 指定浏览器，`CANVAS_BROWSER_QA_PATH` 保留编辑器 UI 截图；该检查与 `pnpm check`、真实 VS Code 集成测试分别运行。
+
 ## 编辑器架构
 
 - `src/extension.ts`：注册 `CustomTextEditorProvider`，负责 VS Code 文档、文件选择、资源访问、源码切换。

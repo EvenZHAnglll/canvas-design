@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { applyOperation, bounds, getStyle, isFramelessFileNode, parseCanvas, serializeCanvas, type CanvasData } from '../src/shared/canvas';
+import { isHtmlNode } from '../src/shared/html';
+import { nodeName } from '../src/shared/hierarchy';
 
 const fixture = (): CanvasData => ({
   custom: { revision: 'agent' },
@@ -17,6 +19,23 @@ test('accepts the four standard node types and optional empty arrays', () => {
   data.nodes.push({ id: 'link', type: 'link', x: 0, y: 0, width: 100, height: 100, url: 'https://example.com' });
   data.nodes.push({ id: 'group', type: 'group', x: 0, y: 0, width: 400, height: 400, label: 'Screen' });
   assert.equal(parseCanvas(JSON.stringify(data)).nodes.length, 4);
+});
+test('HTML cards remain standard text nodes and preserve fallback and extension data through edits', () => {
+  const data = fixture();
+  data.nodes[0].text = 'Fallback card';
+  data.nodes[0].canvasStudio = { ...data.nodes[0].canvasStudio, type: 'html', html: '<div>Hello</div>', css: 'div { color: red; }' };
+  assert.equal(isHtmlNode(parseCanvas(JSON.stringify(data)).nodes[0]), true);
+  const updated = applyOperation(data, { type: 'updateNodes', updates: [{ id: 'a', patch: { x: 55, canvasStudio: { html: '<section>Updated</section>' } } }] });
+  const restored = parseCanvas(serializeCanvas(updated, '{}'));
+  assert.equal(restored.nodes[0].type, 'text');
+  assert.equal(restored.nodes[0].text, 'Fallback card');
+  assert.deepEqual(restored.nodes[0].canvasStudio, { radius: 12, vendor: 'keep', type: 'html', html: '<section>Updated</section>', css: 'div { color: red; }' });
+  assert.equal(nodeName({ ...restored.nodes[0], text: '' }), 'HTML');
+  assert.equal(isHtmlNode({ ...restored.nodes[1], canvasStudio: { type: 'html' } }), false);
+  assert.equal(isHtmlNode(data.nodes[1]), false);
+  assert.throws(() => parseCanvas(JSON.stringify({ nodes: [{ ...data.nodes[0], type: 'html' }] })), /unsupported type/);
+  // Extension metadata remains recoverable even when produced by another tool.
+  assert.equal(parseCanvas(JSON.stringify({ nodes: [{ ...data.nodes[0], canvasStudio: { type: 'html', html: 42, css: null } }] })).nodes[0].text, 'Fallback card');
 });
 test('rejects invalid JSON, unsupported types, duplicate ids, and missing text', () => {
   assert.throws(() => parseCanvas('{'), /Invalid JSON/);

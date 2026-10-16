@@ -1,4 +1,5 @@
 import type { CanvasData, CanvasNode } from './canvas';
+import { isHtmlNode } from './html';
 
 export interface Hierarchy {
   parents: Map<string, string | null>;
@@ -97,5 +98,5 @@ export function moveNode(data: CanvasData, move: MoveNode): CanvasData {
 
 export function nodeName(node: CanvasNode): string {
   const label = node.type === 'group' ? node.label : node.type === 'file' ? node.file?.split('/').pop() : node.type === 'link' ? node.url : node.text?.split('\n').find(line => line.trim());
-  return label?.trim() || (node.type === 'text' ? node.canvasStudio?.shape === 'ellipse' ? 'Ellipse' : 'Rectangle' : node.type === 'group' ? 'Group' : 'File');
+  return label?.trim() || (isHtmlNode(node) ? 'HTML' : node.type === 'text' ? node.canvasStudio?.shape === 'ellipse' ? 'Ellipse' : 'Rectangle' : node.type === 'group' ? 'Group' : 'File');
 }

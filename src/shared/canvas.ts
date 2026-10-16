@@ -3,6 +3,9 @@ import { parseHexColor } from './colors';
 export type NodeType = 'text' | 'file' | 'link' | 'group';
 export type Side = 'top' | 'right' | 'bottom' | 'left';
 export interface DesignStyle {
+  type?: string;
+  html?: string;
+  css?: string;
   shape?: 'rectangle' | 'ellipse';
   fill?: string;
   stroke?: string;

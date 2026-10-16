@@ -105,6 +105,7 @@
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
     "test": "node scripts/test.mjs",
+    "test:browser": "node scripts/test-browser.mjs",
     "test:integration": "pnpm build && node scripts/integration.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "vscode:prepublish": "pnpm build"

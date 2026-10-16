@@ -245,6 +245,26 @@ button:disabled {
   object-fit: contain;
   pointer-events: none;
 }
+.html-preview {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  contain: strict;
+  pointer-events: none;
+}
+.toolbar button[data-tool='html'] {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 15px;
+}
+#stage[data-tool='html'] {
+  cursor: crosshair;
+}
+.code-input {
+  min-height: 160px;
+  font-family: var(--vscode-editor-font-family, monospace);
+  tab-size: 2;
+}
 .embedded-canvas {
   width: 100%;
   height: 100%;

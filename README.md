@@ -7,6 +7,7 @@ A VS Code extension for visually editing [JSON Canvas](https://jsoncanvas.org/sp
 ## Features
 
 - Text, rectangles, ellipses, groups, and connections, with drag, resize, and property editing.
+- HTML fragment cards with scoped CSS, stored as standard text nodes with a fallback for other Canvas readers.
 - Local images and nested Canvas references. PNG transparency and referenced canvases display without an extra background, border, or rounded corners.
 - An Outliner for layers and groups, and a Details inspector. Hide either panel and restore it from its corner icon.
 - Click a fill or stroke color circle in Details to open muted presets, a transparent option, and RGBA controls (RGB 0–255, alpha 0–1).
@@ -15,6 +16,7 @@ A VS Code extension for visually editing [JSON Canvas](https://jsoncanvas.org/sp
 - Full-canvas PNG export, plus a terminal script that lets AI agents request the editor's rendering.
 
 Try the [example dashboard](examples/prototype.canvas), or start with an [empty canvas](examples/empty.canvas).
+The [HTML card example](examples/html-card.canvas) shows an editable fragment and its CSS.
 
 ## Install
 
@@ -34,6 +36,7 @@ In VS Code, run **Extensions: Install from VSIX…** and select `dist/canvas-vsc
 Open a `.canvas` file, or run **Canvas Design: Create Canvas**. If it opens as text, use **Reopen Editor With… → Canvas Design**.
 
 - Choose a tool, then click or drag to draw. Select an object to move, resize, or edit its properties. Double-click text to edit it.
+- Choose **<> HTML fragment** (`U`), then click or drag to create an HTML card. Edit **HTML**, **CSS**, and **Fallback text** in Details; changes apply when you leave a field. Double-click an HTML card to focus its HTML editor.
 - In connection mode, drag between node handles to connect objects.
 - Drag items in **Outliner** to reorder layers or move them into groups. Higher layers appear in front. Moving or deleting a group also affects its descendants.
 - Use the image and Canvas buttons to insert local references. Double-click a referenced canvas to edit it. References must stay within the current canvas directory or an open workspace.
@@ -54,6 +57,8 @@ Open a `.canvas` file, or run **Canvas Design: Create Canvas**. If it opens as t
 ## Limitations
 
 Text is plain text; Markdown rendering is not supported. Images fit within their bounds without cropping. Nested previews expand up to four levels; file `subpath` values are preserved but not expanded. Automatic layout, component overrides, collaboration, and frontend code export are not available yet.
+
+HTML cards support static HTML elements, inline styles, `<style>` blocks, and scoped CSS, including media queries. Scripts, event handlers, navigation, embedded documents, SVG, images, external resources, CSS imports, and custom fonts are filtered out. Controls are display-only. Unsupported markup is preserved in the file but omitted from previews. Other Canvas readers show the fallback text; they may discard application extensions when saving.
 
 ## Screenshots for AI agents
 

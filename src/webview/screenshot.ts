@@ -37,6 +37,26 @@ export async function captureCanvas(container: HTMLElement, data: CanvasData): P
     backgroundColor: getComputedStyle(container).getPropertyValue('--canvas').trim() || '#ffffff',
   });
   const clone = viewport.cloneNode(true) as HTMLElement;
+  // cloneNode does not copy shadow roots, and SVG serialization cannot contain
+  // them. Rasterize each live HTML preview before exporting the overall Canvas,
+  // so both normal cards and nested foreignObjects retain their actual styles.
+  const htmlPreviews = [...viewport.querySelectorAll<HTMLElement>('.html-preview')];
+  const clonedPreviews = [...clone.querySelectorAll<HTMLElement>('.html-preview')];
+  for (const [index, preview] of htmlPreviews.entries()) {
+    const width = preview.clientWidth;
+    const height = preview.clientHeight;
+    if (!width || !height) throw new Error('An HTML preview is not ready for export.');
+    const image = document.createElement('img');
+    image.src = await toPng(preview, {
+      width,
+      height,
+      pixelRatio: Math.min(frame.scale, 4096 / width, 4096 / height),
+      skipFonts: true,
+    });
+    Object.assign(image.style, { display: 'block', width: '100%', height: '100%' });
+    await image.decode();
+    clonedPreviews[index].replaceChildren(image);
+  }
   clone.style.transform = `translate(${frame.x}px, ${frame.y}px) scale(${frame.scale})`;
   clone.style.transformOrigin = '0 0';
   for (const control of clone.querySelectorAll(

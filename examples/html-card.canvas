@@ -1,0 +1,20 @@
+{
+  "nodes": [
+    {
+      "id": "html-card",
+      "type": "text",
+      "text": "Project card — Canvas Design\nHTML fragments with scoped CSS, stored as standard JSON Canvas text nodes.",
+      "x": 0,
+      "y": 0,
+      "width": 400,
+      "height": 240,
+      "canvasStudio": {
+        "type": "html",
+        "html": "<article class=\"card\">\n  <span class=\"badge\">PROJECT</span>\n  <h1>Canvas Design</h1>\n  <p>HTML fragments with scoped CSS.</p>\n  <div class=\"footer\"><span class=\"dot\"></span> Ready to create</div>\n</article>",
+        "css": ".card { height: 100%; padding: 28px; background: #f0edff; color: #27334b; border-radius: 12px; }\n.badge { color: #6550cf; font-size: 11px; font-weight: 700; letter-spacing: 2px; }\nh1 { margin: 18px 0 10px; font-size: 28px; }\np { margin: 0; color: #626b80; line-height: 1.5; }\n.footer { display: flex; align-items: center; gap: 8px; margin-top: 28px; font-size: 13px; }\n.dot { width: 8px; height: 8px; background: #19c37d; border-radius: 50%; }",
+        "radius": 12
+      }
+    }
+  ],
+  "edges": []
+}

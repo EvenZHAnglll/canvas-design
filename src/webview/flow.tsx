@@ -1,10 +1,12 @@
-import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
 import { ReactFlow, ReactFlowProvider, Background, Handle, Position, NodeResizer, ConnectionMode, MarkerType, applyNodeChanges, useReactFlow, type Edge, type NodeProps, type Viewport, type ReactFlowInstance, type NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { bounds, getStyle, isFramelessFileNode, type AssetPreview, type CanvasData, type CanvasNode, type Operation, type Side } from '../shared/canvas';
 import { descendantIds, getHierarchy } from '../shared/hierarchy';
 import { syncFlowNodes, type StudioNode } from './flow-nodes';
+import { isHtmlNode } from '../shared/html';
+import { renderHtmlPreview } from './html-preview';
 
 interface Options {
   data: CanvasData;
@@ -25,6 +27,17 @@ interface Options {
 const Actions = createContext<Options | null>(null);
 const positions = { top: Position.Top, right: Position.Right, bottom: Position.Bottom, left: Position.Left };
 
+function HtmlPreview({ node }: { node: CanvasNode }) {
+  const host = useRef<HTMLDivElement>(null);
+  const html = node.canvasStudio?.html;
+  const css = node.canvasStudio?.css;
+  useLayoutEffect(() => {
+    if (host.current) renderHtmlPreview(host.current, typeof html === 'string' ? html : '', typeof css === 'string' ? css : '');
+  }, [html, css]);
+  // Malformed extension content must not make a standard text node unreadable.
+  return typeof html === 'string' ? <div key="html" className="html-preview" ref={host} /> : <div key="fallback" className="node-text">{node.text}</div>;
+}
+
 function MiniCanvas({ preview }: { preview: AssetPreview }) {
   const canvas = preview.canvas!;
   const b = bounds(canvas.nodes);
@@ -37,7 +50,7 @@ function MiniCanvas({ preview }: { preview: AssetPreview }) {
       const style = getStyle(node); const asset = preview.assets?.[node.id];
       return <g key={node.id}>
         {!isFramelessFileNode(node) && (style.shape === 'ellipse' ? <ellipse cx={node.x + node.width / 2} cy={node.y + node.height / 2} rx={node.width / 2} ry={node.height / 2} fill={style.fill} stroke={style.stroke} /> : <rect x={node.x} y={node.y} width={node.width} height={node.height} rx={style.radius} fill={style.fill} stroke={style.stroke} />)}
-        {asset?.canvas ? <svg x={node.x} y={node.y} width={node.width} height={node.height}><MiniCanvas preview={asset} /></svg> : asset?.uri ? <image x={node.x} y={node.y} width={node.width} height={node.height} href={asset.uri} preserveAspectRatio="xMidYMid meet" /> : <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}><div className={node.type === 'group' ? 'mini-label' : 'mini-text'} style={{ fontSize: style.fontSize }}>{node.text ?? node.label ?? node.file ?? node.url ?? ''}</div></foreignObject>}
+        {isHtmlNode(node) ? <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}><HtmlPreview node={node} /></foreignObject> : asset?.canvas ? <svg x={node.x} y={node.y} width={node.width} height={node.height}><MiniCanvas preview={asset} /></svg> : asset?.uri ? <image x={node.x} y={node.y} width={node.width} height={node.height} href={asset.uri} preserveAspectRatio="xMidYMid meet" /> : <foreignObject x={node.x} y={node.y} width={node.width} height={node.height}><div className={node.type === 'group' ? 'mini-label' : 'mini-text'} style={{ fontSize: style.fontSize }}>{node.text ?? node.label ?? node.file ?? node.url ?? ''}</div></foreignObject>}
       </g>;
     })}
   </svg>;
@@ -65,12 +78,13 @@ function DesignNode({ data, selected }: NodeProps<StudioNode>) {
     }} />
     <div className={`flow-node ${node.type}${frameless ? ' frameless' : ''}${selected ? ' selected' : ''}`} style={boxStyle} onDoubleClick={event => {
       event.stopPropagation();
-      if (node.type === 'text' || node.type === 'group') { editVersion.current = actions.version; setText(node.type === 'group' ? node.label ?? '' : node.text ?? ''); }
+      if (isHtmlNode(node)) { document.querySelector<HTMLTextAreaElement>('#properties textarea[aria-label="HTML"]')?.focus(); }
+      else if (node.type === 'text' || node.type === 'group') { editVersion.current = actions.version; setText(node.type === 'group' ? node.label ?? '' : node.text ?? ''); }
       else actions.onOpen(node.id);
     }}>
       {node.type === 'group' && <div className="group-label">{node.label || 'Group'}</div>}
       <div className="node-content" style={node.type === 'group' && asset?.uri ? { backgroundImage: `url("${asset.uri}")`, backgroundSize: node.backgroundStyle === 'repeat' ? 'auto' : node.backgroundStyle === 'ratio' ? 'contain' : 'cover', backgroundRepeat: node.backgroundStyle === 'repeat' ? 'repeat' : 'no-repeat' } : undefined}>
-        {node.type === 'text' ? <div className="node-text">{node.text}</div> : node.type === 'group' ? null : asset?.canvas ? <MiniCanvas preview={asset} /> : asset?.uri ? <img className="project-image" src={asset.uri} alt={node.file} onLoad={actions.onRendered} onError={event => { event.currentTarget.alt = 'Unable to load image'; actions.onRendered(); }} /> : <><span className="file-symbol">{node.type === 'link' ? '↗' : '◇'}</span><div className="file-name">{node.file ?? node.url}</div><div className={asset?.error ? 'asset-error' : 'file-description'}>{asset?.error ?? 'Double-click to open'}</div></>}
+        {isHtmlNode(node) ? <HtmlPreview node={node} /> : node.type === 'text' ? <div className="node-text">{node.text}</div> : node.type === 'group' ? null : asset?.canvas ? <MiniCanvas preview={asset} /> : asset?.uri ? <img className="project-image" src={asset.uri} alt={node.file} onLoad={actions.onRendered} onError={event => { event.currentTarget.alt = 'Unable to load image'; actions.onRendered(); }} /> : <><span className="file-symbol">{node.type === 'link' ? '↗' : '◇'}</span><div className="file-name">{node.file ?? node.url}</div><div className={asset?.error ? 'asset-error' : 'file-description'}>{asset?.error ?? 'Double-click to open'}</div></>}
       </div>
       {asset?.canvas && <div className="file-caption">⊞ {node.file?.split('/').pop()} · double-click to edit</div>}
       {text !== undefined && <textarea autoFocus className="inline-editor nodrag nowheel" value={text} onChange={event => setText(event.target.value)} onBlur={() => finishText(true)} onKeyDown={event => {
@@ -105,7 +119,7 @@ function CanvasFlow({ options, initialViewport, initialized }: { options: Option
     const color = getStyle({ id: '', type: 'text', x: 0, y: 0, width: 1, height: 1, color: edge.color }).stroke;
     return { id: edge.id, source: edge.fromNode, target: edge.toNode, sourceHandle: edge.fromSide ?? (right ? 'right' : 'left'), targetHandle: edge.toSide ?? (right ? 'left' : 'right'), label: edge.label, type: 'default', style: { stroke: color }, markerEnd: edge.toEnd === 'none' ? undefined : { type: MarkerType.ArrowClosed, color }, markerStart: edge.fromEnd === 'arrow' ? { type: MarkerType.ArrowClosed, color } : undefined, zIndex: options.data.nodes.length + 1 };
   });
-  const drawing = ['rectangle', 'ellipse', 'text', 'group'].includes(options.tool) && !options.invalid;
+  const drawing = ['rectangle', 'ellipse', 'text', 'html', 'group'].includes(options.tool) && !options.invalid;
   const screen = draft && flow.flowToScreenPosition({ x: draft.x, y: draft.y });
   const rect = wrapper.current?.getBoundingClientRect();
   return <Actions.Provider value={options}><div className="flow-wrapper" ref={wrapper}>
@@ -138,7 +152,7 @@ function CanvasFlow({ options, initialViewport, initialized }: { options: Option
       if (!start) return;
       if (start.version !== options.version) { options.onNotice('The file changed; drawing cancelled.'); return; }
       const p = flow.screenToFlowPosition({ x: event.clientX, y: event.clientY }); const moved = Math.abs(start.x - p.x) + Math.abs(start.y - p.y) > 4;
-      options.onCreate(options.tool, moved ? Math.min(start.x, p.x) : start.x, moved ? Math.min(start.y, p.y) : start.y, moved ? Math.max(20, Math.abs(start.x - p.x)) : options.tool === 'group' ? 560 : 220, moved ? Math.max(20, Math.abs(start.y - p.y)) : options.tool === 'group' ? 400 : options.tool === 'text' ? 100 : options.tool === 'ellipse' ? 220 : 140);
+      options.onCreate(options.tool, moved ? Math.min(start.x, p.x) : start.x, moved ? Math.min(start.y, p.y) : start.y, moved ? Math.max(20, Math.abs(start.x - p.x)) : options.tool === 'group' ? 560 : options.tool === 'html' ? 320 : 220, moved ? Math.max(20, Math.abs(start.y - p.y)) : options.tool === 'group' ? 400 : options.tool === 'html' ? 200 : options.tool === 'text' ? 100 : options.tool === 'ellipse' ? 220 : 140);
     }} onPointerCancel={() => { draw.current = undefined; setDraft(undefined); }}>
       {draft && screen && rect && <div className={`draw-preview ${options.tool === 'ellipse' ? 'ellipse' : ''}`} style={{ left: screen.x - rect.left, top: screen.y - rect.top, width: draft.width * flow.getZoom(), height: draft.height * flow.getZoom() }} />}
     </div>}

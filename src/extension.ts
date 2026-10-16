@@ -60,7 +60,7 @@ export function activate(context: vscode.ExtensionContext) {
 class CanvasEditor implements vscode.CustomTextEditorProvider {
   activeUri?: vscode.Uri;
   readonly screenshots = new ScreenshotService();
-  readonly diagnostics = new Map<string, { uri: string; ready: boolean; nodeCount?: number; nestedCount?: number; loadedImages?: number; invalid?: boolean }>();
+  readonly diagnostics = new Map<string, { uri: string; ready: boolean; nodeCount?: number; htmlCount?: number; nestedCount?: number; loadedImages?: number; invalid?: boolean }>();
   private edits: Promise<void> = Promise.resolve();
   private readonly output: vscode.LogOutputChannel;
   constructor(private readonly context: vscode.ExtensionContext) {
@@ -193,7 +193,7 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
           }
           case 'rendered': {
             const previous = this.diagnostics.get(editorId);
-            if (previous) this.diagnostics.set(editorId, { ...previous, nodeCount: message.nodeCount, nestedCount: message.nestedCount, loadedImages: message.loadedImages, invalid: message.invalid });
+            if (previous) this.diagnostics.set(editorId, { ...previous, nodeCount: message.nodeCount, htmlCount: message.htmlCount, nestedCount: message.nestedCount, loadedImages: message.loadedImages, invalid: message.invalid });
             break;
           }
           case 'edit':

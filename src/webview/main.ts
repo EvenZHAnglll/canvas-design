@@ -5,11 +5,12 @@ import { createCanvasRenderer } from './flow';
 import { colorField, syncColorPickerOwner } from './color-field';
 import { enableNumberScrub } from './number-field';
 import { captureCanvas } from './screenshot';
+import { defaultCss, defaultHtml, isHtmlNode } from '../shared/html';
 import { descendantIds, getHierarchy, nodeName, type MoveNode } from '../shared/hierarchy';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; getState(): unknown; setState(state: unknown): void };
 const vscode = acquireVsCodeApi();
-type Tool = 'select' | 'hand' | 'rectangle' | 'ellipse' | 'text' | 'group' | 'connect';
+type Tool = 'select' | 'hand' | 'rectangle' | 'ellipse' | 'text' | 'html' | 'group' | 'connect';
 const session = new EditSession();
 let data: CanvasData = { nodes: [], edges: [] };
 let renderer: ReturnType<typeof createCanvasRenderer>;
@@ -45,7 +46,7 @@ app.innerHTML = `
     <div class="toolbar" role="toolbar" aria-label="Canvas tools">
       <button data-tool="select" title="Select (V)" aria-label="Select">↖</button><button data-tool="hand" title="Pan (H or hold Space)" aria-label="Pan">✋</button><i></i>
       <button data-tool="rectangle" title="Rounded rectangle (R)" aria-label="Rounded rectangle">▢</button><button data-tool="ellipse" title="Ellipse (O)" aria-label="Ellipse">○</button><button data-tool="text" title="Text (T)" aria-label="Text">T</button><button data-tool="group" title="Group (G)" aria-label="Group">▤</button><button data-tool="connect" title="Connect two nodes (C)" aria-label="Connect">↗</button><i></i>
-      <button id="image" title="Insert project image" aria-label="Insert image">▧</button><button id="canvas" title="Embed another Canvas" aria-label="Embed Canvas">⊞</button><button id="file" title="Insert file reference" aria-label="Insert file">📎</button>
+      <button data-tool="html" title="HTML fragment (U)" aria-label="HTML fragment">&lt;&gt;</button><i></i><button id="image" title="Insert project image" aria-label="Insert image">▧</button><button id="canvas" title="Embed another Canvas" aria-label="Embed Canvas">⊞</button><button id="file" title="Insert file reference" aria-label="Insert file">📎</button>
     </div>
     <div id="flow"></div>
     <div id="empty"><span class="empty-icon">▧</span><h1>A shared space for ideas</h1><p>Draw a shape, add a project image, or embed a Canvas.<br>Your design lives in a file your agent can read.</p><button id="first-shape">Create a rectangle</button></div>
@@ -113,7 +114,7 @@ function setTool(value: Tool) {
   }
   stage.dataset.tool = value;
   updateRenderer();
-  document.getElementById('hint')!.textContent = value === 'connect' ? 'Drag a node handle to another node to connect' : ['rectangle', 'ellipse', 'text', 'group'].includes(value) ? 'Click or drag on the canvas to create' : 'Shift + click to select multiple · Scroll to pan · Pinch to zoom';
+  document.getElementById('hint')!.textContent = value === 'connect' ? 'Drag a node handle to another node to connect' : ['rectangle', 'ellipse', 'text', 'html', 'group'].includes(value) ? 'Click or drag on the canvas to create' : 'Shift + click to select multiple · Scroll to pan · Pinch to zoom';
 }
 
 function disposeNumberFields() {
@@ -199,7 +200,7 @@ function render() {
   updateCamera();
 }
 function reportRendered() {
-  post({ type: 'rendered', nodeCount: data.nodes.length, nestedCount: stage.querySelectorAll('.embedded-canvas').length, loadedImages: [...stage.querySelectorAll<HTMLImageElement>('.project-image')].filter(image => image.complete && image.naturalWidth > 0).length, invalid });
+  post({ type: 'rendered', nodeCount: data.nodes.length, htmlCount: [...stage.querySelectorAll<HTMLElement>('.html-preview')].filter(host => host.shadowRoot?.childElementCount).length, nestedCount: stage.querySelectorAll('.embedded-canvas').length, loadedImages: [...stage.querySelectorAll<HTMLImageElement>('.project-image')].filter(image => image.complete && image.naturalWidth > 0).length, invalid });
 }
 function syncSelection(expandParents = false) {
   let expanded = false;
@@ -246,7 +247,7 @@ function finishDrop(move: MoveNode) {
   finally { draggedNode = undefined; clearDropMarks(); }
 }
 function iconFor(node: CanvasNode): string {
-  return node.type === 'group' ? '▤' : node.type === 'file' ? /\.canvas$/i.test(node.file ?? '') ? '⊞' : '▧' : node.type === 'link' ? '↗' : node.canvasStudio?.shape === 'ellipse' ? '○' : node.text ? 'T' : '▢';
+  return isHtmlNode(node) ? '<>' : node.type === 'group' ? '▤' : node.type === 'file' ? /\.canvas$/i.test(node.file ?? '') ? '⊞' : '▧' : node.type === 'link' ? '↗' : node.canvasStudio?.shape === 'ellipse' ? '○' : node.text ? 'T' : '▢';
 }
 function renderOutliner() {
   const scroll = outliner.scrollTop;
@@ -425,8 +426,25 @@ function renderInspector() {
     );
     if (style.shape !== 'ellipse') properties.append(numeric('Corner radius', style.radius, 0, 256, value => ({ canvasStudio: { radius: value } })));
   }
-  if (node.type === 'text') properties.append(numeric('Font size', style.fontSize, 1, 256, value => ({ canvasStudio: { fontSize: value } })));
-  if (node.type === 'text' || node.type === 'group') {
+  if (isHtmlNode(node)) {
+    const editVersion = version;
+    for (const [key, label] of [['html', 'HTML'], ['css', 'CSS'], ['text', 'Fallback text']] as const) {
+      properties.append(element('h4', 'section-title', label));
+      const input = element('textarea', key === 'text' ? 'content-input' : 'content-input code-input');
+      const value = key === 'text' ? node.text : node.canvasStudio?.[key];
+      input.value = typeof value === 'string' ? value : '';
+      input.setAttribute('aria-label', label);
+      input.spellcheck = false;
+      input.addEventListener('change', () => {
+        if (version !== editVersion) { notice('The file changed; HTML edit cancelled.'); return; }
+        patch(key === 'text' ? { text: input.value } : { canvasStudio: { [key]: input.value } });
+      });
+      properties.append(input);
+    }
+    properties.append(element('p', 'muted', 'Static HTML and CSS. Changes apply when you leave the field. Fallback text is shown by other Canvas readers.'));
+  }
+  if (node.type === 'text' && !isHtmlNode(node)) properties.append(numeric('Font size', style.fontSize, 1, 256, value => ({ canvasStudio: { fontSize: value } })));
+  if (node.type === 'group' || node.type === 'text' && !isHtmlNode(node)) {
     properties.append(element('h4', 'section-title', node.type === 'group' ? 'Label' : 'Content'));
     const input = element('textarea', 'content-input'); input.value = node.type === 'text' ? node.text ?? '' : node.label ?? ''; input.setAttribute('aria-label', 'Content');
     input.addEventListener('change', () => patch(node.type === 'text' ? { text: input.value } : { label: input.value })); properties.append(input);
@@ -445,6 +463,7 @@ function addShape(kind: Tool, x: number, y: number, width: number, height: numbe
   const id = uid(); selection = new Set([id]); selectedEdge = undefined;
   const node: CanvasNode = { id, type: kind === 'group' ? 'group' : 'text', x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
   if (kind === 'group') node.label = 'Group';
+  else if (kind === 'html') { node.text = 'HTML card'; node.canvasStudio = { type: 'html', html: defaultHtml, css: defaultCss, radius: 12 }; }
   else { node.text = kind === 'text' ? 'Double-click to edit' : ''; node.canvasStudio = { shape: kind === 'ellipse' ? 'ellipse' : 'rectangle', fill: kind === 'ellipse' ? '#eee9ff' : '#ffffff', stroke: '#b6a7ef', radius: kind === 'text' ? 0 : 16, fontSize: 16 }; }
   commit({ type: 'addNodes', nodes: [node], prepend: kind === 'group' });
 }
@@ -467,7 +486,7 @@ window.addEventListener('keydown', event => {
   if (mod) return;
   if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); removeSelection(); }
   if (event.key === 'Escape') { selection.clear(); selectedEdge = undefined; setTool('select'); render(); }
-  const tools: Record<string, Tool> = { v: 'select', h: 'hand', r: 'rectangle', o: 'ellipse', t: 'text', g: 'group', c: 'connect' };
+  const tools: Record<string, Tool> = { v: 'select', h: 'hand', r: 'rectangle', o: 'ellipse', t: 'text', u: 'html', g: 'group', c: 'connect' };
   if (tools[event.key.toLowerCase()]) setTool(tools[event.key.toLowerCase()]);
   if (event.key.toLowerCase() === 'f') fit();
   if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key) && selection.size) {

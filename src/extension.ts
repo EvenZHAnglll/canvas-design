@@ -7,6 +7,7 @@ import { canExpandCanvas, isWithin, referenceCandidates } from './shared/paths';
 import { ScreenshotService } from './screenshot';
 import { registerScreenshotBridge } from './screenshot-bridge';
 import { screenshotCommand } from './screenshot-command';
+import { prepareFileNodes } from './file-insertion';
 
 const viewType = 'canvasStudio.editor';
 const imagePattern = /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i;
@@ -17,6 +18,10 @@ export function activate(context: vscode.ExtensionContext) {
     webviewOptions: { retainContextWhenHidden: true }, supportsMultipleEditorsPerDocument: true,
   }));
   context.subscriptions.push(
+    vscode.commands.registerCommand('canvasStudio.addFilesToCanvas', (uri?: vscode.Uri, selected?: vscode.Uri[]) => {
+      const files = selected?.length && (!uri || selected.some(item => item.toString() === uri.toString())) ? selected : uri ? [uri] : undefined;
+      return provider.addFilesToActiveCanvas(files);
+    }),
     vscode.commands.registerCommand('canvasStudio.openPreview', (uri?: vscode.Uri) => {
       const target = uri ?? vscode.window.activeTextEditor?.document.uri ?? provider.activeUri;
       if (target) return vscode.commands.executeCommand('vscode.openWith', target, viewType);
@@ -62,6 +67,7 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
   readonly screenshots = new ScreenshotService();
   readonly diagnostics = new Map<string, { uri: string; ready: boolean; nodeCount?: number; htmlCount?: number; nestedCount?: number; loadedImages?: number; invalid?: boolean }>();
   private edits: Promise<void> = Promise.resolve();
+  private readonly editors = new Map<vscode.WebviewPanel, { document: vscode.TextDocument; ready: boolean }>();
   private readonly output: vscode.LogOutputChannel;
   constructor(private readonly context: vscode.ExtensionContext) {
     this.output = vscode.window.createOutputChannel('Canvas Design', { log: true });
@@ -75,6 +81,16 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
   async exportScreenshot(uri: vscode.Uri, destination?: vscode.Uri) {
     await this.edits;
     return this.screenshots.save(uri, destination);
+  }
+
+  async addFilesToActiveCanvas(uris?: vscode.Uri[]) {
+    const target = [...this.editors].reverse().find(([panel, editor]) => panel.active && editor.ready);
+    if (!target) throw new Error('Open a Canvas in visual preview before adding files.');
+    const [panel, editor] = target;
+    const files = uris ?? await vscode.window.showOpenDialog({ canSelectMany: true, canSelectFolders: false, defaultUri: vscode.Uri.file(path.dirname(editor.document.uri.fsPath)) });
+    if (!files?.length) return;
+    if (!this.editors.has(panel) || !panel.active) throw new Error('The active Canvas changed. Add the files again in its preview.');
+    if (!await panel.webview.postMessage({ type: 'insertFiles', uris: files.map(uri => uri.toString()) })) throw new Error('The Canvas preview is not ready.');
   }
 
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
@@ -92,6 +108,8 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
     this.output.info('Webview HTML initialized');
     let generation = 0;
     let disposed = false;
+    const editor = { document, ready: false };
+    this.editors.set(panel, editor);
     let referenced = new Set<string>();
     const roots = (vscode.workspace.workspaceFolders ?? []).map(folder => folder.uri.fsPath);
 
@@ -179,12 +197,27 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
     };
 
     this.screenshots.register(document, panel, refresh);
+    const prepareFiles = async (request: { requestId?: unknown; baseVersion?: unknown; uris?: unknown; x?: unknown; y?: unknown }) => {
+      if (typeof request.requestId !== 'string' || !Number.isInteger(request.baseVersion)) throw new Error('Invalid file insertion request.');
+      try {
+        if (!panel.active) throw new Error('The active Canvas changed. Add the files again in its preview.');
+        if (document.version !== request.baseVersion) throw new Error('The Canvas changed. Add the files again.');
+        parseCanvas(document.getText());
+        const nodes = await prepareFileNodes(document.uri.fsPath, roots, request.uris, request.x, request.y);
+        if (disposed) return;
+        if (!panel.active) throw new Error('The active Canvas changed. Add the files again in its preview.');
+        if (document.version !== request.baseVersion) throw new Error('The Canvas changed. Add the files again.');
+        await panel.webview.postMessage({ type: 'fileNodes', requestId: request.requestId, baseVersion: request.baseVersion, nodes });
+      } catch (error) {
+        if (!disposed) await panel.webview.postMessage({ type: 'fileNodes', requestId: request.requestId, baseVersion: request.baseVersion, error: (error as Error).message });
+      }
+    };
     const disposables: vscode.Disposable[] = [];
     disposables.push(panel.webview.onDidReceiveMessage(async message => {
       try {
         if (!message || typeof message.type !== 'string') return;
         switch (message.type) {
-          case 'ready': this.screenshots.ready(panel); this.diagnostics.set(editorId, { uri: document.uri.toString(), ready: true }); this.output.info('Webview ready'); await refresh(); break;
+          case 'ready': editor.ready = true; this.screenshots.ready(panel); this.diagnostics.set(editorId, { uri: document.uri.toString(), ready: true }); this.output.info('Webview ready'); await refresh(); break;
           case 'screenshotResult': this.screenshots.receive(panel, message); break;
           case 'exportScreenshot': {
             const result = await this.exportScreenshot(document.uri);
@@ -204,17 +237,19 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
           case 'redo': await vscode.commands.executeCommand('redo'); break;
           case 'save': await document.save(); break;
           case 'insertFile': {
+            const baseVersion = message.baseVersion;
             const selected = await vscode.window.showOpenDialog({
               canSelectMany: false, defaultUri: vscode.Uri.file(path.dirname(document.uri.fsPath)),
               filters: message.kind === 'canvas' ? { 'JSON Canvas': ['canvas'] } : message.kind === 'image' ? { Images: ['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg', 'bmp', 'avif'] } : undefined,
             });
-            if (!selected?.[0]) return;
-            const canonical = await realpath(selected[0].fsPath);
-            if (!canonicalRoots.some(root => isWithin(root, canonical))) throw new Error('Choose a file inside this Canvas directory or an open workspace.');
-            const file = path.relative(path.dirname(document.uri.fsPath), selected[0].fsPath).split(path.sep).join('/');
-            edit({ type: 'addNodes', nodes: [{ id: randomUUID(), type: 'file', file, x: Number.isFinite(message.x) ? Math.round(message.x) : 0, y: Number.isFinite(message.y) ? Math.round(message.y) : 0, width: 420, height: 300 }] }, document.version, randomUUID());
+            if (!selected?.[0]) {
+              await panel.webview.postMessage({ type: 'fileNodes', requestId: message.requestId, baseVersion, nodes: [] });
+              return;
+            }
+            await prepareFiles({ ...message, baseVersion, uris: selected.map(uri => uri.toString()) });
             break;
           }
+          case 'prepareFileNodes': await prepareFiles(message); break;
           case 'openNode': {
             const node = parseCanvas(document.getText()).nodes.find(item => item.id === message.id);
             if (node?.type === 'file' && node.file) {
@@ -241,7 +276,7 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
       disposables.push(item, item.onDidChange(changed), item.onDidCreate(changed), item.onDidDelete(changed));
     }
     disposables.push(panel.onDidChangeViewState(() => { if (panel.active) this.activeUri = document.uri; }));
-    panel.onDidDispose(() => { disposed = true; generation++; this.screenshots.remove(panel); this.diagnostics.delete(editorId); disposables.forEach(item => item.dispose()); });
+    panel.onDidDispose(() => { disposed = true; generation++; this.editors.delete(panel); this.screenshots.remove(panel); this.diagnostics.delete(editorId); disposables.forEach(item => item.dispose()); });
     // VS Code mounts the webview after this resolver returns. Awaiting postMessage
     // here can deadlock initialization while it waits for that mount.
     void refresh().catch(error => this.output.error('Initial Canvas refresh failed', error));

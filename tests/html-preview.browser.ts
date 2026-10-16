@@ -4,6 +4,7 @@ import {
   parseCanvas,
   type AssetPreview,
   type CanvasData,
+  type CanvasNode,
 } from '../src/shared/canvas';
 import type { EditRequest } from '../src/shared/edit-session';
 import { captureCanvas } from '../src/webview/screenshot';
@@ -106,6 +107,9 @@ async function run() {
   };
   let version = 1;
   let editCount = 0;
+  const fileRequests: { uris: string[]; x: number; y: number }[] = [];
+  const delayedFileReplies: (() => void)[] = [];
+  let holdFileReplies = false;
   const assets: Record<string, AssetPreview> = {
     nested: {
       canvas: {
@@ -138,8 +142,34 @@ async function run() {
     acquireVsCodeApi: () => ({
       getState: () => ({ x: 70, y: 70, zoom: 1 }),
       setState: () => {},
-      postMessage: (message: { type: string } & Partial<Omit<EditRequest, 'type'>>) => {
+      postMessage: (
+        message: { type: string; uris?: string[]; x?: number; y?: number } & Partial<
+          Omit<EditRequest, 'type'>
+        >,
+      ) => {
         if (message.type === 'ready') queueMicrotask(refresh);
+        if (message.type === 'prepareFileNodes') {
+          const request = { uris: message.uris!, x: message.x!, y: message.y! };
+          fileRequests.push(request);
+          const nodes: CanvasNode[] = request.uris.map((uri, index) => ({
+            id: crypto.randomUUID(),
+            type: 'file',
+            file: decodeURIComponent(new URL(uri).pathname).split('/').pop()!,
+            x: request.x + index * 32,
+            y: request.y + index * 32,
+            width: 420,
+            height: 300,
+          }));
+          const reply = () =>
+            send({
+              type: 'fileNodes',
+              requestId: message.requestId,
+              baseVersion: message.baseVersion,
+              nodes,
+            });
+          if (holdFileReplies) delayedFileReplies.push(reply);
+          else queueMicrotask(reply);
+        }
         if (message.type === 'edit') {
           assert(message.baseVersion === version, 'HTML edits use the current version');
           states.push(structuredClone(data));
@@ -321,8 +351,114 @@ async function run() {
       ),
     'HTML rendering recovers after invalid extension data',
   );
+  const stage = document.getElementById('stage')!;
+  const pane = stage.querySelector<HTMLElement>('.react-flow__pane')!;
+  document.querySelector<HTMLButtonElement>('[aria-label="Zoom in"]')!.click();
+  await until(
+    () =>
+      new DOMMatrix(getComputedStyle(stage.querySelector('.react-flow__viewport')!).transform).a >
+      1.1,
+    'Zoom updates before file drops',
+  );
+  const stageBox = stage.getBoundingClientRect();
+  const clientX = stageBox.left + 180;
+  const clientY = stageBox.top + 240;
+  const matrix = new DOMMatrix(
+    getComputedStyle(stage.querySelector('.react-flow__viewport')!).transform,
+  );
+  const transfer = new DataTransfer();
+  transfer.setData(
+    'ResourceURLs',
+    JSON.stringify(['file:///project/read%20me.md', 'file:///project/image.png']),
+  );
+  function dropEvent(type: string, target: HTMLElement = pane, dataTransfer = transfer) {
+    const event = new DragEvent(type, {
+      clientX,
+      clientY,
+      dataTransfer,
+      bubbles: true,
+      cancelable: true,
+    });
+    target.dispatchEvent(event);
+    return event;
+  }
+  assert(
+    dropEvent('dragover').defaultPrevented && stage.classList.contains('file-drop-active'),
+    'Explorer drag is claimed and highlighted',
+  );
+  const originalCount = data.nodes.length;
+  dropEvent('drop');
+  await until(
+    () => data.nodes.length === originalCount + 2,
+    'Explorer drop inserts multiple files',
+  );
+  assert(!stage.classList.contains('file-drop-active'), 'Drop highlight clears');
+  const request = fileRequests.at(-1)!;
+  assert(
+    request.x === Math.round((clientX - stageBox.left - matrix.e) / matrix.a) &&
+      request.y === Math.round((clientY - stageBox.top - matrix.f) / matrix.d),
+    'Drop coordinates account for sidebars, pan and zoom',
+  );
+  assert(
+    data.nodes.at(-2)?.file === 'read me.md' && data.nodes.at(-1)?.type === 'file',
+    'Dropped references retain decoded filenames',
+  );
+  document.body.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }),
+  );
+  await until(() => data.nodes.length === originalCount, 'One undo removes the entire file drop');
+  send({ type: 'insertFiles', uris: ['file:///project/child.canvas'] });
+  await until(
+    () => data.nodes.length === originalCount + 1,
+    'Explorer command inserts at the viewport center',
+  );
+  const centered = fileRequests.at(-1)!;
+  assert(
+    centered.x === Math.round((stageBox.width / 2 - matrix.e) / matrix.a - 210) &&
+      centered.y === Math.round((stageBox.height / 2 - matrix.f) / matrix.d - 150),
+    'Command placement uses the visible canvas center',
+  );
+  document.body.dispatchEvent(
+    new KeyboardEvent('keydown', { key: 'z', ctrlKey: true, bubbles: true }),
+  );
+  await until(() => data.nodes.length === originalCount, 'Command insertion undoes');
+  holdFileReplies = true;
+  dropEvent('drop');
+  assert(delayedFileReplies.length === 1, 'File resolution can be asynchronous');
+  const beforeStaleDrop = editCount;
+  version++;
+  refresh();
+  delayedFileReplies.shift()!();
+  assert(
+    editCount === beforeStaleDrop && data.nodes.length === originalCount,
+    'Resolved file nodes cannot overwrite a newer source version',
+  );
+  holdFileReplies = false;
+  const beforeInvalidDrop = fileRequests.length;
+  version++;
+  send({ type: 'state', version, name: 'browser.canvas', error: 'Invalid JSON' });
+  dropEvent('drop');
+  assert(
+    fileRequests.length === beforeInvalidDrop && !stage.classList.contains('file-drop-active'),
+    'Invalid Canvas rejects file drops',
+  );
+  version++;
+  refresh();
+  const internal = new DataTransfer();
+  internal.setData('application/x-canvas-node', id);
+  assert(
+    !dropEvent('dragover', pane, internal).defaultPrevented,
+    'Outliner layer drags are not file drops',
+  );
+  document.querySelector<HTMLElement>(`.outliner-row[data-node-id="${id}"]`)!.click();
+  await until(
+    () => !!document.querySelector(`.react-flow__node[data-id="${id}"].selected`),
+    'Restore selection after drop checks',
+  );
+  const input = document.querySelector<HTMLTextAreaElement>('textarea[aria-label="HTML"]')!;
+  assert(!dropEvent('dragover', input).defaultPrevented, 'File drop does not hijack text fields');
   document.getElementById('result')!.textContent =
-    'PASS: safe static HTML/CSS, style isolation, creation, inspector edits, standard storage, nested previews, source synchronization, undo/redo, and PNG pixels.';
+    'PASS: HTML/CSS isolation, editing, nested previews, PNG pixels, Explorer file drops, viewport placement, batch undo, and stale/invalid insertion rejection.';
 }
 
 void run().catch((error) => {

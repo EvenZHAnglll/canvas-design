@@ -100,6 +100,20 @@ button:disabled {
   position: absolute;
   inset: 0;
 }
+#stage.file-drop-active::after {
+  content: 'Drop files to add nodes';
+  position: absolute;
+  inset: 10px;
+  z-index: 150;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--canvas) 75%, transparent);
+  color: var(--foreground);
+  font-size: 16px;
+  pointer-events: none;
+}
 .flow-wrapper {
   position: relative;
   width: 100%;

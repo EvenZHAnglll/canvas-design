@@ -20,6 +20,16 @@ PNG 和 `.canvas` 文件节点直接显示引用内容，不绘制节点背景�
 
 嵌套 Canvas 使用 `file` 节点，`file` 指向另一个 `.canvas`。父画布保留引用，不复制子节点。预览按子画布的内容边界缩放，双击进入被引用的文件编辑。检测循环引用，最多展开四层。文件路径先相对当前 Canvas 解析，再尝试工作区根目录；只访问当前 Canvas 目录或已打开的工作区。
 
+## 文件拖入与 Explorer 菜单
+
+在 Canvas 的 visual preview 中，支持从 VS Code Explorer 拖入一个或多个本地文件；Explorer 文件右键菜单也提供 **Canvas Design: Add to Current Canvas**，仅在当前编辑器为 Canvas 预览时显示。命令面板中的同名命令可以选择文件。目标必须是已就绪且处于活动状态的预览，不回退到隐藏的旧 Canvas。关闭预览、切换到源码或异步选择文件期间切换编辑器，会取消相应操作。
+
+所有文件保存为标准 `file` 节点，路径相对当前 Canvas，保留原文件引用，不复制文件、不导入 Markdown 为文本。PNG 等图片沿用现有图片预览，`.canvas` 沿用嵌套预览及循环检测，其他文件显示双击打开的引用卡片。拖入位置通过当前视口的平移、缩放与 stage 边界换算；右键添加以可见画布中心为首个节点中心。多文件按输入顺序偏移 32 像素，尺寸沿用文件插入默认值 420 × 300。
+
+`src/shared/file-drop.ts` 解析 Explorer 的 `ResourceURLs` 与 URI list 传输格式，忽略普通文本和 Outliner 内部拖动。`src/webview/file-drop.ts` 管理拖入提示与事件接管，避免外层 Webview 将文件作为新编辑器打开；不接管工具栏、属性输入框等控件。`src/file-insertion.ts` 校验整批本地 URI、普通文件类型及 canonical workspace 边界，拒绝目录和越界符号链接，处理工作区路径别名并去重同一物理文件。一次最多添加 100 个文件。
+
+文件选择、拖放和 Explorer 命令共用准备流程：Webview 发送带 `requestId`、`baseVersion` 和画布坐标的请求，扩展校验文件并返回节点；Webview 再以一次 `addNodes` 操作进入原有 EditSession / WorkspaceEdit 流程。因此整批支持一次撤销或重做，未知 Canvas 字段和源码格式仍保留。准备前后及提交时均检查版本；解析期间的源码修改、损坏 JSON 或未完成的编辑不会被新节点覆盖。取消文件选择也会释放待处理请求。
+
 ## HTML 片段节点
 
 HTML 是编辑器中的独立类别，但保存为标准 `text` 节点。`text` 保存供其他 JSON Canvas 阅读器显示的备用文字，`canvasStudio.type` 为 `html`，`canvasStudio.html`、`canvasStudio.css` 分别保存 HTML 片段与样式；不新增顶层节点类型，不要求完整 HTML 文件。未知扩展字段仍按原样保留。扩展中的 HTML 缺失或不是字符串时显示备用文字，非法 CSS 不影响标准 Canvas 文档的打开。

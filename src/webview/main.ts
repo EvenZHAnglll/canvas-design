@@ -5,6 +5,7 @@ import { createCanvasRenderer } from './flow';
 import { colorField, syncColorPickerOwner } from './color-field';
 import { enableNumberScrub } from './number-field';
 import { captureCanvas } from './screenshot';
+import { enableFileDrop } from './file-drop';
 import { defaultCss, defaultHtml, isHtmlNode } from '../shared/html';
 import { descendantIds, getHierarchy, nodeName, type MoveNode } from '../shared/hierarchy';
 
@@ -60,6 +61,20 @@ const stage = document.getElementById('stage')!;
 const properties = document.getElementById('properties')!;
 const outliner = document.getElementById('outliner')!;
 const sceneRoot = document.getElementById('scene-root')!;
+const fileInsertions = new Map<string, number>();
+
+function canInsertFiles() { return loaded && !invalid && !session.hasPendingEdits && !inspectorPreview; }
+function requestFileInsertion(message: Record<string, unknown>) {
+  if (!canInsertFiles()) { notice('Finish the current edit and open a valid Canvas before adding files.'); return; }
+  const requestId = uid();
+  fileInsertions.set(requestId, version);
+  post({ ...message, requestId, baseVersion: version });
+}
+enableFileDrop(stage, {
+  enabled: canInsertFiles,
+  drop(uris, clientX, clientY) { const p = point(clientX, clientY); requestFileInsertion({ type: 'prepareFileNodes', uris, x: Math.round(p.x), y: Math.round(p.y) }); },
+  notice,
+});
 
 function post(message: unknown) { vscode.postMessage(message); }
 function uid(): string { return crypto.randomUUID(); }
@@ -151,7 +166,20 @@ async function exportScreenshot(request: { requestId: string; version: number })
 }
 window.addEventListener('message', event => {
   const message = event.data;
-  if (message.type === 'captureScreenshot') {
+  if (message.type === 'insertFiles') {
+    const p = center();
+    requestFileInsertion({ type: 'prepareFileNodes', uris: message.uris, x: Math.round(p.x - 210), y: Math.round(p.y - 150) });
+  } else if (message.type === 'fileNodes') {
+    const baseVersion = fileInsertions.get(message.requestId);
+    fileInsertions.delete(message.requestId);
+    if (baseVersion === undefined) return;
+    if (message.error) { notice(message.error); return; }
+    if (!Array.isArray(message.nodes) || !message.nodes.length) return;
+    if (baseVersion !== version || message.baseVersion !== version || !canInsertFiles()) { notice('The Canvas changed. Add the files again.'); return; }
+    selection = new Set(message.nodes.map((node: CanvasNode) => node.id)); selectedEdge = undefined;
+    setTool('select');
+    commit({ type: 'addNodes', nodes: message.nodes });
+  } else if (message.type === 'captureScreenshot') {
     void exportScreenshot(message);
   } else if (message.type === 'state') {
     const state = message as CanvasState;
@@ -496,7 +524,7 @@ window.addEventListener('keydown', event => {
 });
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-tool]')) button.onclick = () => setTool(button.dataset.tool as Tool);
 for (const [id, kind] of [['image', 'image'], ['canvas', 'canvas'], ['file', 'file']]) document.getElementById(id)!.onclick = () => {
-  const p = center(); post({ type: 'insertFile', kind, x: Math.round(p.x - 210), y: Math.round(p.y - 150) });
+  const p = center(); requestFileInsertion({ type: 'insertFile', kind, x: Math.round(p.x - 210), y: Math.round(p.y - 150) });
 };
 document.getElementById('source')!.onclick = document.getElementById('error-source')!.onclick = () => post({ type: 'source' });
 document.getElementById('export-screenshot')!.onclick = () => post({ type: 'exportScreenshot' });

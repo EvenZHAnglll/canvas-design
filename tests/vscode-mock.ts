@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { readFile, writeFile, stat } from 'node:fs/promises';
 
 export class Uri {
@@ -7,7 +8,7 @@ export class Uri {
   get path() { return this.fsPath; }
   static file(value: string) { return new Uri(path.resolve(value)); }
   static joinPath(base: Uri, ...parts: string[]) { return Uri.file(path.join(base.fsPath, ...parts)); }
-  static parse(value: string) { const uri = new Uri(value); uri.scheme = value.split(':')[0]; return uri; }
+  static parse(value: string, _strict?: boolean) { if (value.startsWith('file:')) return Uri.file(fileURLToPath(value)); const uri = new Uri(value); uri.scheme = value.split(':')[0]; return uri; }
   toString() { return this.scheme === 'file' ? `file://${this.fsPath}` : this.fsPath; }
 }
 export class Range { constructor(public start: unknown, public end: unknown) {} }

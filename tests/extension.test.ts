@@ -117,3 +117,60 @@ test('copy AI screenshot command resolves the installed script and current proje
     await assert.rejects(copy(), /project folder/);
   } finally { await ctx.close(); }
 });
+
+test('file insertion prepares a validated batch and commits it through the versioned editor protocol', async () => {
+  const ctx = await setup();
+  try {
+    await writeFile(path.join(ctx.root, 'notes.md'), '# Notes');
+    await writeFile(path.join(ctx.root, 'child.canvas'), '{"nodes":[],"edges":[]}');
+    await ctx.panel.send({ type: 'prepareFileNodes', requestId: 'files', baseVersion: 1, uris: ['notes.md', 'child.canvas'].map(file => mock.Uri.file(path.join(ctx.root, file)).toString()), x: -12, y: 34 });
+    const prepared = ctx.panel.messages.find(message => message.type === 'fileNodes' && message.requestId === 'files');
+    assert.equal(prepared.baseVersion, 1);
+    assert.deepEqual(prepared.nodes.map((node: { file: string }) => node.file), ['notes.md', 'child.canvas']);
+    assert.equal(parseCanvas(ctx.document.getText()).nodes.length, 0);
+    await ctx.panel.send({ type: 'edit', requestId: 'commit-files', baseVersion: 1, operation: { type: 'addNodes', nodes: prepared.nodes } });
+    await until(() => ctx.panel.messages.some(item => item.requestId === 'commit-files'));
+    assert.equal(parseCanvas(ctx.document.getText()).nodes.length, 2);
+    await ctx.panel.send({ type: 'prepareFileNodes', requestId: 'stale-files', baseVersion: 1, uris: [mock.Uri.file(path.join(ctx.root, 'notes.md')).toString()], x: 0, y: 0 });
+    assert.match(ctx.panel.messages.find(item => item.requestId === 'stale-files').error, /changed/);
+    await ctx.panel.send({ type: 'prepareFileNodes', requestId: 'folder', baseVersion: ctx.document.version, uris: [mock.Uri.file(ctx.root).toString()], x: 0, y: 0 });
+    assert.match(ctx.panel.messages.find(item => item.requestId === 'folder').error, /Folders/);
+    ctx.panel.active = false;
+    await ctx.panel.send({ type: 'prepareFileNodes', requestId: 'hidden', baseVersion: ctx.document.version, uris: [mock.Uri.file(path.join(ctx.root, 'notes.md')).toString()], x: 0, y: 0 });
+    assert.match(ctx.panel.messages.find(item => item.requestId === 'hidden').error, /active Canvas changed/);
+    assert.equal(parseCanvas(ctx.document.getText()).nodes.length, 2);
+  } finally { await ctx.close(); }
+});
+
+test('Explorer command targets only a ready active Canvas preview and supports multi-selection', async () => {
+  const ctx = await setup();
+  try {
+    const add = mock.commandHandlers.get('canvasStudio.addFilesToCanvas')!;
+    const files = ['notes.md', 'image.png'].map(file => mock.Uri.file(path.join(ctx.root, file)));
+    await add(files[0], files);
+    assert.deepEqual(ctx.panel.messages.at(-1), { type: 'insertFiles', uris: files.map(uri => uri.toString()) });
+    ctx.panel.active = false;
+    await assert.rejects(async () => add(files[0]), /visual preview/);
+    const otherUri = mock.Uri.file(path.join(ctx.root, 'other.canvas'));
+    const otherDocument = new mock.Document(otherUri, '{"nodes":[],"edges":[]}');
+    const otherPanel = new mock.Panel();
+    mock.workspace.textDocuments.push(otherDocument);
+    await mock.registeredProvider.resolveCustomTextEditor(otherDocument, otherPanel);
+    await assert.rejects(async () => add(files[0]), /visual preview/);
+    await otherPanel.send({ type: 'ready' });
+    await add(files[1], files);
+    assert.equal(otherPanel.messages.at(-1).type, 'insertFiles');
+    assert.equal(ctx.panel.messages.filter(message => message.type === 'insertFiles').length, 1);
+    otherPanel.dispose();
+    await assert.rejects(async () => add(files[0]), /visual preview/);
+  } finally { await ctx.close(); }
+});
+
+test('cancelling the file chooser releases the pending insertion without modifying the Canvas', async () => {
+  const ctx = await setup();
+  try {
+    await ctx.panel.send({ type: 'insertFile', requestId: 'cancel', baseVersion: 1, kind: 'file', x: 0, y: 0 });
+    assert.deepEqual(ctx.panel.messages.at(-1), { type: 'fileNodes', requestId: 'cancel', baseVersion: 1, nodes: [] });
+    assert.equal(ctx.document.version, 1);
+  } finally { await ctx.close(); }
+});

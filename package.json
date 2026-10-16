@@ -34,6 +34,11 @@
     ],
     "commands": [
       {
+        "command": "canvasStudio.addFilesToCanvas",
+        "title": "Canvas Design: Add to Current Canvas",
+        "icon": "$(add)"
+      },
+      {
         "command": "canvasStudio.openPreview",
         "title": "Canvas Design: Open Visual Editor",
         "icon": "$(preview)"
@@ -67,6 +72,11 @@
         }
       ],
       "explorer/context": [
+        {
+          "command": "canvasStudio.addFilesToCanvas",
+          "when": "!explorerResourceIsFolder && resourceScheme == file && activeCustomEditorId == canvasStudio.editor",
+          "group": "navigation"
+        },
         {
           "command": "canvasStudio.copyScreenshotCommand",
           "when": "resourceExtname == .canvas",

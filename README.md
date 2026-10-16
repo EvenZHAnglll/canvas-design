@@ -9,6 +9,7 @@ A VS Code extension for visually editing [JSON Canvas](https://jsoncanvas.org/sp
 - Text, rectangles, ellipses, groups, and connections, with drag, resize, and property editing.
 - HTML fragment cards with scoped CSS, stored as standard text nodes with a fallback for other Canvas readers.
 - Local images and nested Canvas references. PNG transparency and referenced canvases display without an extra background, border, or rounded corners.
+- Drag files from VS Code Explorer onto the canvas, or right-click files and choose **Canvas Design: Add to Current Canvas**. Multiple files can be inserted together.
 - An Outliner for layers and groups, and a Details inspector. Hide either panel and restore it from its corner icon.
 - Click a fill or stroke color circle in Details to open muted presets, a transparent option, and RGBA controls (RGB 0–255, alpha 0–1).
 - VS Code save, undo, redo, and JSON source editing, with previews that refresh after external edits.
@@ -40,6 +41,7 @@ Open a `.canvas` file, or run **Canvas Design: Create Canvas**. If it opens as t
 - In connection mode, drag between node handles to connect objects.
 - Drag items in **Outliner** to reorder layers or move them into groups. Higher layers appear in front. Moving or deleting a group also affects its descendants.
 - Use the image and Canvas buttons to insert local references. Double-click a referenced canvas to edit it. References must stay within the current canvas directory or an open workspace.
+- With a Canvas open in visual preview, drop `.md`, `.png`, `.canvas`, or other local files from **Explorer** onto the canvas. Nodes start at the drop position. Alternatively, right-click one or more files and choose **Canvas Design: Add to Current Canvas** to place them at the visible canvas center. Each batch undoes as one edit; files remain references rather than copies. Markdown and other documents appear as reference cards you can double-click to open.
 - Collapse either sidebar with its heading arrow; use the top-left or top-right icon to restore it.
 - Drag a numeric value in **Details** left or right to adjust it with a live preview. Click to type a value, or press Escape during a drag to cancel.
 - Use the **</>** button or **Canvas Design: Open JSON Source** to edit the source directly.

@@ -11,6 +11,7 @@ Markdown rendering, image cropping, automatic layout, component instance overrid
 ## Project Structure & Module Organization
 
 - `src/extension.ts`: VS Code custom editor registration, document edits, Webview messaging, resource access, and diagnostics.
+- `src/file-insertion.ts`, `src/shared/file-drop.ts`, and `src/webview/file-drop.ts`: Explorer file drops and **Add to Current Canvas**. Prepare canonical-path-checked local file references, then commit one versioned `addNodes` operation through the Webview edit session. Preserve viewport drop coordinates, batch undo/redo, active-preview targeting, and the existing file picker workflow.
 - `src/shared/`: JSON Canvas validation and operations (`canvas.ts`), versioned edit sessions (`edit-session.ts`), group hierarchy and ordering (`hierarchy.ts`), and path rules (`paths.ts`).
 - `src/shared/colors.ts` and `src/webview/color-field.ts`: safe hex/RGBA conversion and compact Details color rows that open floating preset/RGBA pickers. Keep an open picker across document acknowledgements and close it when the inspected node changes. Authored alpha lives in `canvasStudio` as eight-digit hex; standard JSON Canvas `color` stays unchanged.
 - `src/webview/main.ts`: header-free DOM editor shell, tools, left Outliner, full-height right Details inspector, and edit-session integration.

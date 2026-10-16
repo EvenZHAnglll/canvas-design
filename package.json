@@ -1,6 +1,6 @@
 {
   "name": "canvas-vscode",
-  "displayName": "Canvas Studio",
+  "displayName": "Canvas Design",
   "description": "Edit JSON Canvas design files in VS Code, alongside your code and AI agent.",
   "version": "0.1.0",
   "publisher": "canvas-studio",
@@ -16,13 +16,14 @@
   ],
   "main": "./dist/extension.cjs",
   "activationEvents": [
+    "onStartupFinished",
     "onCustomEditor:canvasStudio.editor"
   ],
   "contributes": {
     "customEditors": [
       {
         "viewType": "canvasStudio.editor",
-        "displayName": "Canvas Studio",
+        "displayName": "Canvas Design",
         "selector": [
           {
             "filenamePattern": "*.canvas"
@@ -34,21 +35,54 @@
     "commands": [
       {
         "command": "canvasStudio.openPreview",
-        "title": "Canvas: Open Visual Editor",
+        "title": "Canvas Design: Open Visual Editor",
         "icon": "$(preview)"
       },
       {
         "command": "canvasStudio.openSource",
-        "title": "Canvas: Open JSON Source",
+        "title": "Canvas Design: Open JSON Source",
         "icon": "$(code)"
       },
       {
+        "command": "canvasStudio.exportScreenshot",
+        "title": "Canvas Design: Export Screenshot",
+        "icon": "$(device-camera)"
+      },
+      {
+        "command": "canvasStudio.copyScreenshotCommand",
+        "title": "Canvas Design: Copy AI Screenshot Command",
+        "icon": "$(copy)"
+      },
+      {
         "command": "canvasStudio.newCanvas",
-        "title": "Canvas: Create Canvas"
+        "title": "Canvas Design: Create Canvas"
       }
     ],
     "menus": {
+      "editor/context": [
+        {
+          "command": "canvasStudio.copyScreenshotCommand",
+          "when": "resourceExtname == .canvas",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "canvasStudio.copyScreenshotCommand",
+          "when": "resourceExtname == .canvas",
+          "group": "navigation"
+        }
+      ],
       "editor/title": [
+        {
+          "command": "canvasStudio.copyScreenshotCommand",
+          "when": "activeCustomEditorId == canvasStudio.editor"
+        },
+        {
+          "command": "canvasStudio.exportScreenshot",
+          "when": "activeCustomEditorId == canvasStudio.editor",
+          "group": "navigation"
+        },
         {
           "command": "canvasStudio.openPreview",
           "when": "resourceExtname == .canvas && activeCustomEditorId != canvasStudio.editor",
@@ -77,16 +111,17 @@
   },
   "dependencies": {
     "@xyflow/react": "^12.8.5",
+    "html-to-image": "1.11.13",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
-    "@types/vscode": "^1.95.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "prettier": "^3.6.2",
+    "@types/vscode": "^1.95.0",
     "esbuild": "^0.27.0",
+    "prettier": "^3.6.2",
     "typescript": "^5.7.0"
   }
 }

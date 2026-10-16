@@ -3,6 +3,8 @@ import { applyOperation, getStyle, isFramelessFileNode, type AssetPreview, type 
 import { EditSession } from '../shared/edit-session';
 import { createCanvasRenderer } from './flow';
 import { colorField, syncColorPickerOwner } from './color-field';
+import { enableNumberScrub } from './number-field';
+import { captureCanvas } from './screenshot';
 import { descendantIds, getHierarchy, nodeName, type MoveNode } from '../shared/hierarchy';
 
 declare function acquireVsCodeApi(): { postMessage(message: unknown): void; getState(): unknown; setState(state: unknown): void };
@@ -19,6 +21,8 @@ let selectedEdge: string | undefined;
 let loaded = false;
 let invalid = false;
 let draggedNode: { id: string; version: number } | undefined;
+let inspectorPreview: Operation | undefined;
+let numberFieldDisposers: (() => void)[] = [];
 let toastTimer: ReturnType<typeof setTimeout>;
 const saved = vscode.getState() as { x?: number; y?: number; zoom?: number; collapsed?: string[]; expandedReferences?: string[]; outlinerHidden?: boolean; detailsHidden?: boolean } | undefined;
 const collapsed = new Set(saved?.collapsed ?? []);
@@ -46,7 +50,7 @@ app.innerHTML = `
     <div id="flow"></div>
     <div id="empty"><span class="empty-icon">▧</span><h1>A shared space for ideas</h1><p>Draw a shape, add a project image, or embed a Canvas.<br>Your design lives in a file your agent can read.</p><button id="first-shape">Create a rectangle</button></div>
     <div id="error" hidden><h2>Unable to display this Canvas</h2><p id="error-message"></p><button id="error-source">Open JSON source</button></div>
-    <div class="statusbar"><span id="hint">Drag to move · Scroll to pan · Pinch to zoom</span><div class="status-actions"><button id="source" title="Open JSON source" aria-label="Open JSON source">&lt;/&gt;</button><div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="Zoom in">+</button><button id="fit" title="Fit all nodes (F)">Fit</button></div></div></div>
+    <div class="statusbar"><span id="hint">Drag to move · Scroll to pan · Pinch to zoom</span><div class="status-actions"><button id="export-screenshot" title="Export full Canvas as PNG" aria-label="Export Canvas screenshot">Export PNG</button><button id="source" title="Open JSON source" aria-label="Open JSON source">&lt;/&gt;</button><div class="zoom-controls"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="Zoom in">+</button><button id="fit" title="Fit all nodes (F)">Fit</button></div></div></div>
     <div id="toast" role="status" hidden></div>
   </main><aside id="details-sidebar" class="inspector" aria-label="Details sidebar">
     <section id="details-panel"><div class="panel-heading"><span>Details</span><span id="selection-count"></span><button id="hide-details" class="sidebar-button panel-collapse" title="Hide Details" aria-label="Hide Details" aria-controls="details-sidebar" aria-expanded="true"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="m10 7 5 5-5 5"/></svg></button></div><div id="properties"></div></section>
@@ -112,19 +116,47 @@ function setTool(value: Tool) {
   document.getElementById('hint')!.textContent = value === 'connect' ? 'Drag a node handle to another node to connect' : ['rectangle', 'ellipse', 'text', 'group'].includes(value) ? 'Click or drag on the canvas to create' : 'Shift + click to select multiple · Scroll to pan · Pinch to zoom';
 }
 
-function rebuild() { data = session.preview(); }
+function disposeNumberFields() {
+  const disposers = numberFieldDisposers;
+  numberFieldDisposers = [];
+  for (const dispose of disposers) dispose();
+}
+function rebuild() { disposeNumberFields(); data = session.preview(); }
 function commit(operation: Operation) {
   if (invalid || version < 0) return;
   try { session.enqueue(uid(), operation); rebuild(); render(); pump(); }
   catch (error) { notice((error as Error).message); }
 }
 function pump() { const request = session.next(); if (request) post(request); }
+let screenshotBusy = false;
+async function exportScreenshot(request: { requestId: string; version: number }) {
+  const button = document.getElementById('export-screenshot') as HTMLButtonElement;
+  const snapshot = data;
+  if (screenshotBusy) {
+    post({ type: 'screenshotResult', requestId: request.requestId, error: 'Another screenshot is being exported.' });
+    return;
+  }
+  try {
+    if (invalid || request.version !== version) throw new Error('The Canvas is not ready for export.');
+    if (session.hasPendingEdits || inspectorPreview) throw new Error('Finish the current edit before exporting.');
+    screenshotBusy = true;
+    button.disabled = true;
+    const dataUrl = await captureCanvas(document.getElementById('flow')!, snapshot);
+    if (snapshot !== data || request.version !== version || inspectorPreview) throw new Error('The Canvas changed during export. Please export again.');
+    post({ type: 'screenshotResult', requestId: request.requestId, version, dataUrl });
+  } catch (error) {
+    post({ type: 'screenshotResult', requestId: request.requestId, error: (error as Error).message });
+  } finally { screenshotBusy = false; button.disabled = invalid; }
+}
 window.addEventListener('message', event => {
   const message = event.data;
-  if (message.type === 'state') {
+  if (message.type === 'captureScreenshot') {
+    void exportScreenshot(message);
+  } else if (message.type === 'state') {
     const state = message as CanvasState;
     if (state.version < version) return;
     version = state.version; invalid = !!state.error;
+    (document.getElementById('export-screenshot') as HTMLButtonElement).disabled = invalid || screenshotBusy;
     stage.setAttribute('aria-label', `Design canvas: ${state.name}`);
     document.getElementById('error')!.hidden = !invalid;
     document.getElementById('error-message')!.textContent = state.error ?? '';
@@ -147,7 +179,7 @@ window.addEventListener('message', event => {
 
 function updateRenderer() {
   if (!renderer) return;
-  renderer.update({ data, assets, selected: new Set(selection), tool, version, invalid,
+  renderer.update({ data: inspectorPreview ? applyOperation(data, inspectorPreview) : data, assets, selected: new Set(selection), tool, version, invalid,
     onSelect(ids) {
       if (ids.length === selection.size && ids.every(id => selection.has(id))) return;
       selection = new Set(ids); selectedEdge = undefined; syncSelection(true);
@@ -320,12 +352,49 @@ sceneRoot.addEventListener('dragover', event => {
 sceneRoot.addEventListener('drop', event => {
   event.preventDefault(); if (draggedNode) finishDrop({ type: 'moveNode', id: draggedNode.id, targetId: null, placement: 'inside' });
 });
-function field(label: string, value: string | number, type: string, change: (value: string) => void): HTMLElement {
-  const row = element('label', 'field'); row.append(element('span', 'field-label', label));
-  const input = element('input'); input.type = type; input.value = String(value); input.setAttribute('aria-label', label);
-  input.addEventListener('change', () => change(input.value)); row.append(input); return row;
+function numberField(
+  label: string,
+  value: number,
+  min: number,
+  max: number,
+  operation: (value: number) => Operation,
+): HTMLElement {
+  const row = element('label', 'field');
+  row.append(element('span', 'field-label', label));
+  const input = element('input');
+  input.type = 'number';
+  input.value = String(value);
+  input.setAttribute('aria-label', label);
+  input.min = String(min);
+  input.max = String(max);
+  input.step = '1';
+  input.addEventListener('change', () => {
+    const next = input.valueAsNumber;
+    if (!Number.isFinite(next)) {
+      input.value = String(value);
+      return;
+    }
+    commit(operation(Math.max(min, Math.min(max, next))));
+  });
+  numberFieldDisposers.push(enableNumberScrub(input, {
+    preview(next) {
+      inspectorPreview = operation(next);
+      updateRenderer();
+    },
+    commit(next) {
+      inspectorPreview = undefined;
+      commit(operation(next));
+    },
+    cancel() {
+      inspectorPreview = undefined;
+      updateRenderer();
+    },
+  }));
+  row.append(input);
+  return row;
 }
 function renderInspector() {
+  disposeNumberFields();
   const inspectedNode = !invalid && selection.size === 1 ? data.nodes.find(item => selection.has(item.id)) : undefined;
   syncColorPickerOwner(inspectedNode && !isFramelessFileNode(inspectedNode) ? inspectedNode.id : undefined);
   properties.replaceChildren();
@@ -340,13 +409,12 @@ function renderInspector() {
   const node = inspectedNode!;
   const style = getStyle(node);
   const patch = (fields: Partial<CanvasNode>) => commit({ type: 'updateNodes', updates: [{ id: node.id, patch: fields }] });
+  const numeric = (label: string, value: number, min: number, max: number, fields: (value: number) => Partial<CanvasNode>) =>
+    numberField(label, value, min, max, next => ({ type: 'updateNodes', updates: [{ id: node.id, patch: fields(next) }] }));
   properties.append(element('h3', 'property-title', nodeName(node)));
   const coordinates = element('div', 'field-grid');
   for (const [key, label] of [['x', 'X'], ['y', 'Y'], ['width', 'W'], ['height', 'H']] as const) {
-    coordinates.append(field(label, Math.round(node[key]), 'number', value => {
-      const number = Math.round(Number(value)); if (!Number.isSafeInteger(number)) return;
-      patch({ [key]: key === 'width' || key === 'height' ? Math.max(20, number) : number });
-    }));
+    coordinates.append(numeric(label, Math.round(node[key]), key === 'width' || key === 'height' ? 20 : -Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, value => ({ [key]: Math.round(value) })));
   }
   properties.append(coordinates);
   if (!isFramelessFileNode(node)) {
@@ -355,9 +423,9 @@ function renderInspector() {
       colorField(node.id, 'Fill', style.fill, value => patch({ canvasStudio: { fill: value } })),
       colorField(node.id, 'Stroke', style.stroke, value => patch({ canvasStudio: { stroke: value } })),
     );
-    if (style.shape !== 'ellipse') properties.append(field('Corner radius', style.radius, 'number', value => patch({ canvasStudio: { radius: Math.max(0, Math.min(256, Number(value) || 0)) } })));
+    if (style.shape !== 'ellipse') properties.append(numeric('Corner radius', style.radius, 0, 256, value => ({ canvasStudio: { radius: value } })));
   }
-  if (node.type === 'text') properties.append(field('Font size', style.fontSize, 'number', value => patch({ canvasStudio: { fontSize: Math.max(1, Math.min(256, Number(value) || 16)) } })));
+  if (node.type === 'text') properties.append(numeric('Font size', style.fontSize, 1, 256, value => ({ canvasStudio: { fontSize: value } })));
   if (node.type === 'text' || node.type === 'group') {
     properties.append(element('h4', 'section-title', node.type === 'group' ? 'Label' : 'Content'));
     const input = element('textarea', 'content-input'); input.value = node.type === 'text' ? node.text ?? '' : node.label ?? ''; input.setAttribute('aria-label', 'Content');
@@ -412,6 +480,7 @@ for (const [id, kind] of [['image', 'image'], ['canvas', 'canvas'], ['file', 'fi
   const p = center(); post({ type: 'insertFile', kind, x: Math.round(p.x - 210), y: Math.round(p.y - 150) });
 };
 document.getElementById('source')!.onclick = document.getElementById('error-source')!.onclick = () => post({ type: 'source' });
+document.getElementById('export-screenshot')!.onclick = () => post({ type: 'exportScreenshot' });
 document.getElementById('fit')!.onclick = fit;
 document.getElementById('zoom-in')!.onclick = () => zoom(1.2);
 document.getElementById('zoom-out')!.onclick = () => zoom(1 / 1.2);

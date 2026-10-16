@@ -1,5 +1,9 @@
 import * as vscode from 'vscode';
 import assert from 'node:assert/strict';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
+import { inflateSync } from 'node:zlib';
+import { screenshotCommand } from '../src/screenshot-command';
 
 interface Diagnostic {
   uri: string;
@@ -32,7 +36,7 @@ export async function run() {
   assert.equal(
     input.viewType,
     'canvasStudio.editor',
-    'Canvas Studio is the default .canvas editor',
+    'Canvas Design is the default .canvas editor',
   );
   await until(
     () =>
@@ -49,7 +53,52 @@ export async function run() {
     'Canvas did not mount, render its nested Canvas, and load its image',
   );
   console.log(
-    'PASS: normal .canvas open selected Canvas Studio; 11 nodes, nested Canvas, and local image rendered.',
+    'PASS: normal .canvas open selected Canvas Design; 11 nodes, nested Canvas, and local image rendered.',
+  );
+  const screenshotUri = vscode.Uri.joinPath(root, 'prototype-export.png');
+  const screenshot = await vscode.commands.executeCommand<{
+    width: number;
+    height: number;
+    version: number;
+  }>('canvasStudio.exportScreenshot', uri, screenshotUri);
+  assert.ok(screenshot && screenshot.width > 100 && screenshot.height > 100);
+  const png = Buffer.from(await vscode.workspace.fs.readFile(screenshotUri));
+  assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
+  assert.equal(png.readUInt32BE(16), screenshot.width);
+  assert.equal(png.readUInt32BE(20), screenshot.height);
+  assert.ok(png.length > 10_000, 'Screenshot includes rendered content');
+  const chunks: Buffer[] = [];
+  for (let offset = 8; offset < png.length;) {
+    const length = png.readUInt32BE(offset);
+    if (png.toString('ascii', offset + 4, offset + 8) === 'IDAT')
+      chunks.push(png.subarray(offset + 8, offset + 8 + length));
+    offset += length + 12;
+  }
+  assert.ok(
+    inflateSync(Buffer.concat(chunks)).some((value) => value > 4),
+    'Screenshot is not a fully transparent image',
+  );
+  if (process.env.CANVAS_SCREENSHOT_QA_PATH) {
+    await vscode.workspace.fs.writeFile(
+      vscode.Uri.file(process.env.CANVAS_SCREENSHOT_QA_PATH),
+      png,
+    );
+  }
+  console.log('PASS: full Canvas PNG export rendered text, nested Canvas, and local images.');
+  const terminalCommand = screenshotCommand(extension.extensionPath, uri.fsPath, root.fsPath);
+  const terminal = await promisify(execFile)(
+    process.platform === 'win32' ? 'powershell.exe' : '/bin/sh',
+    process.platform === 'win32'
+      ? ['-NoProfile', '-NonInteractive', '-Command', terminalCommand]
+      : ['-c', terminalCommand],
+    { cwd: root.fsPath, env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, timeout: 65_000 },
+  );
+  const automated = JSON.parse(terminal.stdout) as { path: string; width: number; height: number };
+  assert.equal(automated.width, screenshot.width);
+  assert.equal(automated.height, screenshot.height);
+  assert.ok((await vscode.workspace.fs.stat(vscode.Uri.file(automated.path))).size > 10_000);
+  console.log(
+    'PASS: absolute installed-script command exported PNG from a separate project directory.',
   );
   await vscode.commands.executeCommand('canvasStudio.openSource', uri);
   await until(

@@ -11,5 +11,5 @@ if (process.argv.includes('--watch')) {
   console.log('Watching extension, webview, and CSS…');
 } else {
   await Promise.all(options.map(option => build(option)));
-  console.log('Built Canvas Studio.');
+  console.log('Built Canvas Design.');
 }

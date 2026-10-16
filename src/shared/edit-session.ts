@@ -59,4 +59,5 @@ export class EditSession {
   }
 
   get needsState(): boolean { return this.barrier !== undefined && this.version < this.barrier; }
+  get hasPendingEdits(): boolean { return this.queue.length > 0 || this.confirmed.length > 0; }
 }

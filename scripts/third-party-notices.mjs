@@ -58,7 +58,8 @@ export async function generateThirdPartyNotices() {
     );
   }
   if (!sections.length) throw new Error('No bundled dependencies found; run pnpm build first.');
-  const header = `Canvas Studio — Third-party notices
+  const extensionManifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const header = `${extensionManifest.displayName} — Third-party notices
 
 The following software is included in the production extension bundles.
 Each component remains subject to its own license reproduced below.

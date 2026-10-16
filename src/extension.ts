@@ -4,6 +4,9 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
 import { applyOperation, parseCanvas, serializeCanvas, type AssetPreview, type CanvasData, type CanvasState, type Operation } from './shared/canvas';
 import { canExpandCanvas, isWithin, referenceCandidates } from './shared/paths';
+import { ScreenshotService } from './screenshot';
+import { registerScreenshotBridge } from './screenshot-bridge';
+import { screenshotCommand } from './screenshot-command';
 
 const viewType = 'canvasStudio.editor';
 const imagePattern = /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i;
@@ -29,18 +32,49 @@ export function activate(context: vscode.ExtensionContext) {
       await vscode.workspace.fs.writeFile(uri, Buffer.from('{\n  "nodes": [],\n  "edges": []\n}\n'));
       await vscode.commands.executeCommand('vscode.openWith', uri, viewType);
     }),
+    vscode.commands.registerCommand('canvasStudio.exportScreenshot', async (uri?: vscode.Uri, destination?: vscode.Uri) => {
+      const target = uri ?? provider.activeUri ?? vscode.window.activeTextEditor?.document.uri;
+      if (!target) throw new Error('Open a Canvas before exporting a screenshot.');
+      return provider.exportScreenshot(target, destination);
+    }),
+    vscode.commands.registerCommand('canvasStudio.copyScreenshotCommand', async (uri?: vscode.Uri) => {
+      const active = vscode.window.activeTextEditor?.document.uri;
+      const target = uri ?? (active && /\.canvas$/i.test(active.path) ? active : provider.activeUri);
+      if (!target || target.scheme !== 'file' || !/\.canvas$/i.test(target.path)) throw new Error('Open a local Canvas before copying its screenshot command.');
+      const folder = vscode.workspace.getWorkspaceFolder(target);
+      if (!folder || folder.uri.scheme !== 'file') throw new Error('Open the Canvas project folder in VS Code first.');
+      const command = screenshotCommand(context.extensionUri.fsPath, target.fsPath, folder.uri.fsPath);
+      await vscode.env.clipboard.writeText(command);
+      void vscode.window.showInformationMessage('AI screenshot command copied. Run it in a terminal or share it with your agent.');
+      return command;
+    }),
+    provider.screenshots,
+    registerScreenshotBridge(uri => provider.captureScreenshot(uri)),
   );
-  return { getDiagnostics: () => [...provider.diagnostics.values()] };
+  return {
+    getDiagnostics: () => [...provider.diagnostics.values()],
+    exportScreenshot: (uri: vscode.Uri, destination: vscode.Uri) => provider.exportScreenshot(uri, destination),
+  };
 }
 
 class CanvasEditor implements vscode.CustomTextEditorProvider {
   activeUri?: vscode.Uri;
+  readonly screenshots = new ScreenshotService();
   readonly diagnostics = new Map<string, { uri: string; ready: boolean; nodeCount?: number; nestedCount?: number; loadedImages?: number; invalid?: boolean }>();
   private edits: Promise<void> = Promise.resolve();
   private readonly output: vscode.LogOutputChannel;
   constructor(private readonly context: vscode.ExtensionContext) {
-    this.output = vscode.window.createOutputChannel('Canvas Studio', { log: true });
+    this.output = vscode.window.createOutputChannel('Canvas Design', { log: true });
     context.subscriptions.push(this.output);
+  }
+
+  async captureScreenshot(uri: vscode.Uri) {
+    await this.edits;
+    return this.screenshots.capture(uri);
+  }
+  async exportScreenshot(uri: vscode.Uri, destination?: vscode.Uri) {
+    await this.edits;
+    return this.screenshots.save(uri, destination);
   }
 
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
@@ -141,15 +175,22 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
           await refresh();
           await panel.webview.postMessage({ type: 'ack', requestId, error: (error as Error).message });
         }
-      }).catch(error => console.error('Canvas Studio edit failed', error));
+      }).catch(error => console.error('Canvas Design edit failed', error));
     };
 
+    this.screenshots.register(document, panel, refresh);
     const disposables: vscode.Disposable[] = [];
     disposables.push(panel.webview.onDidReceiveMessage(async message => {
       try {
         if (!message || typeof message.type !== 'string') return;
         switch (message.type) {
-          case 'ready': this.diagnostics.set(editorId, { uri: document.uri.toString(), ready: true }); this.output.info('Webview ready'); await refresh(); break;
+          case 'ready': this.screenshots.ready(panel); this.diagnostics.set(editorId, { uri: document.uri.toString(), ready: true }); this.output.info('Webview ready'); await refresh(); break;
+          case 'screenshotResult': this.screenshots.receive(panel, message); break;
+          case 'exportScreenshot': {
+            const result = await this.exportScreenshot(document.uri);
+            if (result) await panel.webview.postMessage({ type: 'notice', message: `PNG exported: ${result.path}` });
+            break;
+          }
           case 'rendered': {
             const previous = this.diagnostics.get(editorId);
             if (previous) this.diagnostics.set(editorId, { ...previous, nodeCount: message.nodeCount, nestedCount: message.nestedCount, loadedImages: message.loadedImages, invalid: message.invalid });
@@ -200,7 +241,7 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
       disposables.push(item, item.onDidChange(changed), item.onDidCreate(changed), item.onDidDelete(changed));
     }
     disposables.push(panel.onDidChangeViewState(() => { if (panel.active) this.activeUri = document.uri; }));
-    panel.onDidDispose(() => { disposed = true; generation++; this.diagnostics.delete(editorId); disposables.forEach(item => item.dispose()); });
+    panel.onDidDispose(() => { disposed = true; generation++; this.screenshots.remove(panel); this.diagnostics.delete(editorId); disposables.forEach(item => item.dispose()); });
     // VS Code mounts the webview after this resolver returns. Awaiting postMessage
     // here can deadlock initialization while it waits for that mount.
     void refresh().catch(error => this.output.error('Initial Canvas refresh failed', error));
@@ -212,7 +253,7 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
     const script = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview.js'));
     const css = webview.asWebviewUri(vscode.Uri.joinPath(this.context.extensionUri, 'dist', 'webview.css'));
     return `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
-      <link href="${css}" rel="stylesheet"><title>Canvas Studio</title></head><body><div id="app"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
+      <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource} data:; connect-src ${webview.cspSource}; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}';">
+      <link href="${css}" rel="stylesheet"><title>Canvas Design</title></head><body><div id="app"></div><script nonce="${nonce}" src="${script}"></script></body></html>`;
   }
 }

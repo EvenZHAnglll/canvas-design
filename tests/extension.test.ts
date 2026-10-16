@@ -103,3 +103,17 @@ test('source, save, undo, and redo requests delegate to VS Code', async () => {
     assert.equal(mock.executed[0].args[1], 'default');
   } finally { await ctx.close(); }
 });
+
+test('copy AI screenshot command resolves the installed script and current project automatically', async () => {
+  const ctx = await setup();
+  try {
+    const copy = mock.commandHandlers.get('canvasStudio.copyScreenshotCommand')! as () => Promise<string>;
+    const command = await copy();
+    assert.equal(await mock.env.clipboard.readText(), command);
+    assert.ok(command.includes(path.join(process.cwd(), 'scripts', 'capture-canvas.mjs')));
+    assert.ok(command.includes(ctx.uri.fsPath));
+    assert.ok(command.includes(ctx.root));
+    mock.workspace.workspaceFolders = [];
+    await assert.rejects(copy(), /project folder/);
+  } finally { await ctx.close(); }
+});

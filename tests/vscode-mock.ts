@@ -37,15 +37,27 @@ export const window = {
   registerCustomEditorProvider(_type: string, provider: typeof registeredProvider) { registeredProvider = provider; return disposable(); },
   async showOpenDialog() { return undefined; },
   async showSaveDialog() { return undefined; },
+  async showInformationMessage() { return undefined; },
 };
 export const commands = {
   registerCommand(id: string, callback: (...args: any[]) => unknown) { commandHandlers.set(id, callback); return disposable(); },
   async executeCommand(id: string, ...args: unknown[]) { executed.push({ id, args }); },
 };
-export const env = { async openExternal(uri: Uri) { executed.push({ id: 'openExternal', args: [uri] }); return true; } };
+let clipboardText = '';
+export const env = {
+  clipboard: { async writeText(text: string) { clipboardText = text; }, async readText() { return clipboardText; } },
+  async openExternal(uri: Uri) { executed.push({ id: 'openExternal', args: [uri] }); return true; },
+};
+export const watchers: { pattern: string | RelativePattern; create(uri: Uri): void }[] = [];
 export const workspace = {
   workspaceFolders: [] as { uri: Uri }[],
   textDocuments: [] as Document[],
+  getWorkspaceFolder(uri: Uri) {
+    return workspace.workspaceFolders.filter(folder => {
+      const relative = path.relative(folder.uri.fsPath, uri.fsPath);
+      return relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+    }).sort((a, b) => b.uri.fsPath.length - a.uri.fsPath.length)[0];
+  },
   fs: {
     async readFile(uri: Uri) { return readFile(uri.fsPath); },
     async writeFile(uri: Uri, bytes: Uint8Array) { await writeFile(uri.fsPath, bytes); },
@@ -60,7 +72,15 @@ export const workspace = {
     return true;
   },
   onDidChangeTextDocument(callback: Listener) { changeListeners.push(callback); return { dispose() { changeListeners = changeListeners.filter(item => item !== callback); } }; },
-  createFileSystemWatcher() { return { dispose() {}, onDidChange: disposable, onDidCreate: disposable, onDidDelete: disposable }; },
+  createFileSystemWatcher(pattern: string | RelativePattern) {
+    const listeners: ((uri: Uri) => void)[] = [];
+    watchers.push({ pattern, create(uri) { listeners.forEach(listener => listener(uri)); } });
+    return {
+      dispose() { listeners.length = 0; },
+      onDidChange: disposable, onDidDelete: disposable,
+      onDidCreate(callback: (uri: Uri) => void) { listeners.push(callback); return disposable(); },
+    };
+  },
 };
 export class Panel {
   active = true;
@@ -74,8 +94,9 @@ export class Panel {
     onDidReceiveMessage: (callback: (message: unknown) => unknown) => { this.receiver = callback; return disposable(); },
   };
   onDidChangeViewState() { return disposable(); }
+  reveal() {}
   onDidDispose(callback: () => void) { this.close = callback; return disposable(); }
   async send(message: unknown) { await this.receiver?.(message); }
   dispose() { this.close?.(); }
 }
-export function reset() { changeListeners = []; workspace.textDocuments = []; workspace.workspaceFolders = []; executed.length = 0; commandHandlers.clear(); }
+export function reset() { changeListeners = []; workspace.textDocuments = []; workspace.workspaceFolders = []; executed.length = 0; watchers.length = 0; commandHandlers.clear(); }

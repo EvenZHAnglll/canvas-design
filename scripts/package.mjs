@@ -26,6 +26,7 @@ const xml = (value) =>
 try {
   await generateThirdPartyNotices();
   await mkdir(path.join(staging, 'extension', 'dist'), { recursive: true });
+  await mkdir(path.join(staging, 'extension', 'scripts'), { recursive: true });
   for (const file of [
     'package.json',
     'README.md',
@@ -34,6 +35,7 @@ try {
     'dist/extension.cjs',
     'dist/webview.js',
     'dist/webview.css',
+    'scripts/capture-canvas.mjs',
   ]) {
     await copyFile(path.join(root, file), path.join(staging, 'extension', file));
   }

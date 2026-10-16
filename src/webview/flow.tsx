@@ -1,11 +1,11 @@
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from 'react';
 import { createRoot } from 'react-dom/client';
-import { ReactFlow, ReactFlowProvider, Background, Handle, Position, NodeResizer, ConnectionMode, MarkerType, applyNodeChanges, useReactFlow, type Node, type Edge, type NodeProps, type Viewport, type ReactFlowInstance, type NodeChange } from '@xyflow/react';
+import { ReactFlow, ReactFlowProvider, Background, Handle, Position, NodeResizer, ConnectionMode, MarkerType, applyNodeChanges, useReactFlow, type Edge, type NodeProps, type Viewport, type ReactFlowInstance, type NodeChange } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 import { bounds, getStyle, isFramelessFileNode, type AssetPreview, type CanvasData, type CanvasNode, type Operation, type Side } from '../shared/canvas';
 import { descendantIds, getHierarchy } from '../shared/hierarchy';
+import { syncFlowNodes, type StudioNode } from './flow-nodes';
 
-type StudioNode = Node<{ canvas: CanvasNode; asset?: AssetPreview }, 'canvas'>;
 interface Options {
   data: CanvasData;
   assets: Record<string, AssetPreview>;
@@ -94,11 +94,7 @@ function CanvasFlow({ options, initialViewport, initialized }: { options: Option
   const wrapper = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (drag.current && drag.current.version !== options.version) { drag.current = undefined; options.onNotice('The file changed; drag cancelled.'); }
-    setNodes(current => options.data.nodes.map((node, index) => ({
-      id: node.id, type: 'canvas', position: drag.current ? current.find(item => item.id === node.id)?.position ?? { x: node.x, y: node.y } : { x: node.x, y: node.y },
-      data: { canvas: node, asset: options.assets[node.id] }, selected: options.selected.has(node.id),
-      style: { width: node.width, height: node.height }, zIndex: index,
-    })));
+    setNodes(current => syncFlowNodes(current, options.data.nodes, options.assets, options.selected, !!drag.current));
     requestAnimationFrame(options.onRendered);
   }, [options.data, options.assets, options.selected, options.version]);
   const onChanges = useCallback((changes: NodeChange<StudioNode>[]) => setNodes(current => applyNodeChanges(changes, current)), []);

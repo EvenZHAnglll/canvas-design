@@ -653,6 +653,20 @@ kbd {
 .field input[type='number'] {
   appearance: textfield;
 }
+.field input.scrubbable-number {
+  cursor: ew-resize;
+  touch-action: pan-y;
+}
+.field input.scrubbable-number::-webkit-inner-spin-button,
+.field input.scrubbable-number::-webkit-outer-spin-button {
+  appearance: none;
+  margin: 0;
+}
+.number-scrubbing,
+.number-scrubbing * {
+  cursor: ew-resize !important;
+  user-select: none !important;
+}
 .color-field {
   margin-bottom: 8px;
 }

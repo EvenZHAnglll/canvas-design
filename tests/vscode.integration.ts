@@ -64,7 +64,9 @@ export async function run() {
   });
   assert.equal(nodeReference, `prototype.canvas#node=${encodeURIComponent(nodeId)}`);
   assert.equal(await vscode.env.clipboard.readText(), nodeReference);
-  console.log('PASS: node path command copies the project-relative Canvas path and stable node ID.');
+  console.log(
+    'PASS: node path command copies the project-relative Canvas path and stable node ID.',
+  );
   const screenshotUri = vscode.Uri.joinPath(root, 'prototype-export.png');
   const screenshot = await vscode.commands.executeCommand<{
     width: number;
@@ -125,7 +127,11 @@ export async function run() {
     width: 160,
     height: 80,
     text: 'Agent update',
-    canvasDesign: { type: 'html', html: '<div class="card">Agent HTML update</div>', css: '.card { padding: 12px; background: #19c37d; height: 100%; }' },
+    canvasDesign: {
+      type: 'html',
+      html: '<div class="card">Agent HTML update</div>',
+      css: '.card { padding: 12px; background: #19c37d; height: 100%; }',
+    },
   });
   const edit = new vscode.WorkspaceEdit();
   edit.replace(
@@ -136,27 +142,67 @@ export async function run() {
   await vscode.workspace.applyEdit(edit);
   await vscode.commands.executeCommand('canvasDesign.openPreview', uri);
   await until(
-    () => api.getDiagnostics().some((item) => item.uri === uri.toString() && item.nodeCount === 12 && item.htmlCount === 1),
+    () =>
+      api
+        .getDiagnostics()
+        .some(
+          (item) => item.uri === uri.toString() && item.nodeCount === 12 && item.htmlCount === 1,
+        ),
     'Agent source edits were not reflected in the preview',
   );
   console.log('PASS: source / preview toggles and external document edits.');
   const htmlScreenshotUri = vscode.Uri.joinPath(root, 'html-export.png');
   await vscode.commands.executeCommand('canvasDesign.exportScreenshot', uri, htmlScreenshotUri);
   assert.ok((await vscode.workspace.fs.stat(htmlScreenshotUri)).size > 10_000);
-  console.log('PASS: HTML text-node extension renders after source edits and exports with the Canvas.');
+  console.log(
+    'PASS: HTML text-node extension renders after source edits and exports with the Canvas.',
+  );
   const noteUri = vscode.Uri.joinPath(root, 'drop-note.md');
   const imageUri = vscode.Uri.joinPath(root, 'drop-image.png');
   const childUri = vscode.Uri.joinPath(root, 'components', 'share-card.canvas');
   await vscode.workspace.fs.writeFile(noteUri, Buffer.from('# Referenced Markdown\n'));
   await vscode.workspace.fs.writeFile(imageUri, png);
-  await vscode.commands.executeCommand('canvasDesign.addFilesToCanvas', noteUri, [noteUri, imageUri, childUri]);
-  await until(() => api.getDiagnostics().some(item => item.uri === uri.toString() && item.nodeCount === 15 && item.loadedImages === 2 && item.nestedCount === 2), 'Explorer file insertion did not render all three references');
-  assert.deepEqual(JSON.parse(document.getText()).nodes.slice(-3).map((node: { type: string; file: string }) => [node.type, node.file]), [['file', 'drop-note.md'], ['file', 'drop-image.png'], ['file', 'components/share-card.canvas']]);
+  await vscode.commands.executeCommand('canvasDesign.addFilesToCanvas', noteUri, [
+    noteUri,
+    imageUri,
+    childUri,
+  ]);
+  await until(
+    () =>
+      api
+        .getDiagnostics()
+        .some(
+          (item) =>
+            item.uri === uri.toString() &&
+            item.nodeCount === 15 &&
+            item.loadedImages === 2 &&
+            item.nestedCount === 2,
+        ),
+    'Explorer file insertion did not render all three references',
+  );
+  assert.deepEqual(
+    JSON.parse(document.getText())
+      .nodes.slice(-3)
+      .map((node: { type: string; file: string }) => [node.type, node.file]),
+    [
+      ['file', 'drop-note.md'],
+      ['file', 'drop-image.png'],
+      ['file', 'components/share-card.canvas'],
+    ],
+  );
   await vscode.commands.executeCommand('undo');
-  await until(() => api.getDiagnostics().some(item => item.uri === uri.toString() && item.nodeCount === 12), 'A file batch did not undo as one edit');
+  await until(
+    () => api.getDiagnostics().some((item) => item.uri === uri.toString() && item.nodeCount === 12),
+    'A file batch did not undo as one edit',
+  );
   await vscode.commands.executeCommand('redo');
-  await until(() => api.getDiagnostics().some(item => item.uri === uri.toString() && item.nodeCount === 15), 'A file batch did not redo');
-  console.log('PASS: Explorer command inserts Markdown, PNG, and Canvas file nodes at the viewport center with atomic undo/redo.');
+  await until(
+    () => api.getDiagnostics().some((item) => item.uri === uri.toString() && item.nodeCount === 15),
+    'A file batch did not redo',
+  );
+  console.log(
+    'PASS: Explorer command inserts Markdown, PNG, and Canvas file nodes at the viewport center with atomic undo/redo.',
+  );
   const invalid = vscode.Uri.joinPath(root, 'invalid.canvas');
   await vscode.workspace.fs.writeFile(invalid, Buffer.from('{ broken'));
   await vscode.commands.executeCommand('vscode.open', invalid);

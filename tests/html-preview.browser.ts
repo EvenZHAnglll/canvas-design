@@ -136,7 +136,14 @@ async function run() {
   const states: CanvasData[] = [];
   const redo: CanvasData[] = [];
   function refresh() {
-    send({ type: 'state', version, name: 'browser.canvas', uri: 'file:///project/browser.canvas', data, assets });
+    send({
+      type: 'state',
+      version,
+      name: 'browser.canvas',
+      uri: 'file:///project/browser.canvas',
+      data,
+      assets,
+    });
   }
   Object.assign(window, {
     acquireVsCodeApi: () => ({
@@ -199,11 +206,23 @@ async function run() {
   });
   await import('../src/webview/main');
   await until(() => !!document.querySelector('.react-flow__node'), 'Editor mounts');
-  const plainNode = document.querySelector<HTMLElement>('.react-flow__node[data-id="plain"] .flow-node')!;
+  const plainNode = document.querySelector<HTMLElement>(
+    '.react-flow__node[data-id="plain"] .flow-node',
+  )!;
   const nodeContext = JSON.parse(plainNode.dataset.vscodeContext!);
-  assert(nodeContext.webviewSection === 'canvasNode' && nodeContext.canvasDesignNodeId === 'plain' && nodeContext.canvasDesignUri === 'file:///project/browser.canvas', 'Native node menu identifies the exact node and Canvas document');
-  plainNode.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
-  await until(() => !!document.querySelector('.react-flow__node[data-id="plain"].selected'), 'Right-click selects its target node');
+  assert(
+    nodeContext.webviewSection === 'canvasNode' &&
+      nodeContext.canvasDesignNodeId === 'plain' &&
+      nodeContext.canvasDesignUri === 'file:///project/browser.canvas',
+    'Native node menu identifies the exact node and Canvas document',
+  );
+  plainNode.dispatchEvent(
+    new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }),
+  );
+  await until(
+    () => !!document.querySelector('.react-flow__node[data-id="plain"].selected'),
+    'Right-click selects its target node',
+  );
   document.querySelector<HTMLButtonElement>('[data-tool="html"]')!.click();
   await until(() => !!document.querySelector('.draw-layer'), 'HTML creation tool activates');
   const layer = document.querySelector<HTMLElement>('.draw-layer')!;
@@ -441,7 +460,13 @@ async function run() {
   holdFileReplies = false;
   const beforeInvalidDrop = fileRequests.length;
   version++;
-  send({ type: 'state', version, name: 'browser.canvas', uri: 'file:///project/browser.canvas', error: 'Invalid JSON' });
+  send({
+    type: 'state',
+    version,
+    name: 'browser.canvas',
+    uri: 'file:///project/browser.canvas',
+    error: 'Invalid JSON',
+  });
   dropEvent('drop');
   assert(
     fileRequests.length === beforeInvalidDrop && !stage.classList.contains('file-drop-active'),

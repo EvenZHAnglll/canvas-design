@@ -132,7 +132,7 @@ export class ScreenshotService implements vscode.Disposable {
           editor.ready,
       );
     if (!find())
-      await vscode.commands.executeCommand('vscode.openWith', uri, 'canvasStudio.editor');
+      await vscode.commands.executeCommand('vscode.openWith', uri, 'canvasDesign.editor');
     const deadline = Date.now() + 20_000;
     while (!find()) {
       if (Date.now() > deadline)

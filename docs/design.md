@@ -8,7 +8,12 @@
 
 使用 JSON Canvas 1.0 的 `nodes` 和 `edges`，支持 `text`、`file`、`link`、`group` 四种标准节点。位置、尺寸、连线和文件引用均使用标准字段。未知字段在编辑后保留。
 
-视觉扩展放在节点的 `canvasStudio` 对象中：`shape` 为 `rectangle` 或 `ellipse`，`fill`、`stroke` 使用 `#RRGGBB` 或含透明度的 `#RRGGBBAA`，`radius`、`fontSize` 为数字。标准 `color` 字段仍只接受 JSON Canvas 的 1–6 或六位十六进制颜色。图形仍是标准 `text` 节点，其他阅读器可以显示其文本。扩展字段的完整视觉效果需要本插件。
+视觉扩展放在节点的 `canvasDesign` 对象中：`shape` 为 `rectangle` 或 `ellipse`，`fill`、`stroke` 使用 `#RRGGBB` 或含透明度的 `#RRGGBBAA`，`radius`、`fontSize` 为数字。标准 `color` 字段仍只接受 JSON Canvas 的 1–6 或六位十六进制颜色。图形仍是标准 `text` 节点，其他阅读器可以显示其文本。扩展字段的完整视觉效果需要本插件。
+
+早期本地开发版的编辑器元数据命名空间不做自动迁移。迁移这类旧画布时，先备份文件，
+再在 JSON 源码中将节点的旧编辑器元数据键改为 `canvasDesign`，保留其内容。
+旧编辑器关联需改为 `canvasDesign.editor`。标准节点和未知字段仍会保留，
+但未迁移的旧样式、HTML 片段和显式分组关系不会按新命名空间解释。
 
 Details 的 Fill、Stroke 各保持单行当前色值和圆形色样。点击色样打开浮动取色面板，面板内显示低饱和度预设色、透明色快捷选项，以及 R/G/B（0–255）与 A（0–1）数值输入。弹层使用原生 Popover 顶层，不受侧栏滚动容器裁切；点击外部、关闭按钮或 Escape 关闭，切换检查对象也会关闭。改色及文档确认期间保持弹层打开。预设色使用不透明颜色；透明选项保留 RGB 并将 A 设为 0。颜色修改保存为八位十六进制，画布与嵌套 SVG 预览共用颜色解析。旧分组的六位填充色保留原有约 31% 的不透明度；显式八位颜色直接使用其 alpha，不再叠加默认透明度。界面以两位小数显示 A，文件保留八位颜色的 alpha 精度。
 
@@ -19,6 +24,12 @@ PNG 和 `.canvas` 文件节点直接显示引用内容，不绘制节点背景�
 节点数组从后到前决定层叠关系，Outliner 以相反顺序显示同级图层，顶部代表最前层。渲染器显式使用节点数组下标作为层级，并关闭自动层级调整；选中节点不会改变其遮挡关系。
 
 嵌套 Canvas 使用 `file` 节点，`file` 指向另一个 `.canvas`。父画布保留引用，不复制子节点。预览按子画布的内容边界缩放，双击进入被引用的文件编辑。检测循环引用，最多展开四层。文件路径先相对当前 Canvas 解析，再尝试工作区根目录；只访问当前 Canvas 目录或已打开的工作区。
+
+## 复制节点路径
+
+节点右键菜单提供 **Copy Node Path**（`canvasDesign.copyNodePath`）。复制格式为 `design/home.canvas#node=hero-title`：文件路径相对包含该 Canvas 的工作区根目录，多根工作区使用实际包含该文件的根目录；未包含在工作区中时使用绝对路径。目录分隔符统一为 `/`，节点 ID 通过 `encodeURIComponent` 编码。AI 读取 `#node=` 前的文件，对后半部分解码，再在 `nodes` 数组中按 `id` 匹配；不使用易随排序变化的数组下标或分组路径。分组自身也可定位。嵌套预览作为父画布的文件节点定位，内部节点需打开子 Canvas 后复制。
+
+Webview 的节点通过 `data-vscode-context` 提供 `webviewSection: canvasNode`、`canvasDesignUri` 和 `canvasDesignNodeId`，命令只出现在节点的原生右键菜单中。右键未选中的节点会选中它，多选时复制右键目标。扩展从对应的活动、已就绪编辑器读取当前文档，确认节点仍存在后经 VS Code 剪贴板复制；不接受过期菜单指向其他文件，不修改文档或撤销栈。
 
 ## 文件拖入与 Explorer 菜单
 
@@ -32,7 +43,7 @@ PNG 和 `.canvas` 文件节点直接显示引用内容，不绘制节点背景�
 
 ## HTML 片段节点
 
-HTML 是编辑器中的独立类别，但保存为标准 `text` 节点。`text` 保存供其他 JSON Canvas 阅读器显示的备用文字，`canvasStudio.type` 为 `html`，`canvasStudio.html`、`canvasStudio.css` 分别保存 HTML 片段与样式；不新增顶层节点类型，不要求完整 HTML 文件。未知扩展字段仍按原样保留。扩展中的 HTML 缺失或不是字符串时显示备用文字，非法 CSS 不影响标准 Canvas 文档的打开。
+HTML 是编辑器中的独立类别，但保存为标准 `text` 节点。`text` 保存供其他 JSON Canvas 阅读器显示的备用文字，`canvasDesign.type` 为 `html`，`canvasDesign.html`、`canvasDesign.css` 分别保存 HTML 片段与样式；不新增顶层节点类型，不要求完整 HTML 文件。未知扩展字段仍按原样保留。扩展中的 HTML 缺失或不是字符串时显示备用文字，非法 CSS 不影响标准 Canvas 文档的打开。
 
 工具栏的 **<> HTML fragment**（`U`）支持点击或拖动创建节点。Details 分别编辑 HTML、CSS、Fallback text，离开字段后通过版本化编辑协议提交，沿用保存、撤销和重做；双击卡片聚焦 HTML 编辑区。节点支持原有位置、尺寸、层级、复制和连线操作。示例见 `examples/html-card.canvas`。
 

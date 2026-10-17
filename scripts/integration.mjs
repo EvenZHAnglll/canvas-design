@@ -5,7 +5,7 @@ import { promisify } from 'node:util';
 import path from 'node:path';
 import os from 'node:os';
 
-const root = await mkdtemp(path.join(os.tmpdir(), 'canvas-studio-integration-'));
+const root = await mkdtemp(path.join(os.tmpdir(), 'canvas-design-integration-'));
 await mkdir(path.join(root, 'tests'));
 await cp('examples', path.join(root, 'workspace'), { recursive: true });
 await build({

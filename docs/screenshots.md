@@ -17,7 +17,7 @@ The VSIX includes the screenshot script. The project being edited does not need 
 AI agents can find the installation automatically using the VS Code `code` CLI. On macOS/Linux, from the other project's root:
 
 ```sh
-node "$(code --locate-extension canvas-studio.canvas-vscode)/scripts/capture-canvas.mjs" ./design.canvas
+node "$(code --locate-extension EvenSo.canvas-design)/scripts/capture-canvas.mjs" ./design.canvas
 ```
 
 Replace `./design.canvas` with the desired file. This lookup needs `code` on `PATH` and the same VS Code installation/profile that has Canvas Design installed; use the copy command for a custom installation. For VS Code Insiders, use `code-insiders` instead of `code`.
@@ -58,10 +58,10 @@ Other VS Code extensions can export without a save dialog:
 
 ```ts
 const result = await vscode.commands.executeCommand(
-  'canvasStudio.exportScreenshot',
+  'canvasDesign.exportScreenshot',
   vscode.Uri.file('/project/design.canvas'),
   vscode.Uri.file('/project/design.png'),
 );
 ```
 
-The promise returns `{ path, uri, width, height, version }` after the PNG is written. Omitting the destination opens the save dialog; cancellation returns `undefined`. The activated extension API also provides `exportScreenshot(canvasUri, destinationUri)`. The extension identity remains `canvas-studio.canvas-vscode` for compatibility.
+The promise returns `{ path, uri, width, height, version }` after the PNG is written. Omitting the destination opens the save dialog; cancellation returns `undefined`. The activated extension API also provides `exportScreenshot(canvasUri, destinationUri)`. The extension identity is `EvenSo.canvas-design`.

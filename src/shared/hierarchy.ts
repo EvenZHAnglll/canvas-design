@@ -22,7 +22,7 @@ export function getHierarchy(nodes: CanvasNode[]): Hierarchy {
   const groupIds = new Set(groups.map(group => group.id));
   const parents = new Map<string, string | null>();
   for (const node of nodes) {
-    const explicit = node.canvasStudio?.parentId;
+    const explicit = node.canvasDesign?.parentId;
     if (explicit !== undefined) {
       parents.set(node.id, typeof explicit === 'string' && groupIds.has(explicit) && explicit !== node.id ? explicit : null);
       continue;
@@ -80,7 +80,7 @@ export function moveNode(data: CanvasData, move: MoveNode): CanvasData {
   const parentId = move.placement === 'inside' ? move.targetId : hierarchy.parents.get(move.targetId!) ?? null;
   const result = structuredClone(data);
   // Freeze inferred relationships during a layer move, so geometry cannot undo a reparent.
-  for (const item of result.nodes) item.canvasStudio = { ...item.canvasStudio, parentId: item.id === move.id ? parentId : hierarchy.parents.get(item.id) ?? null };
+  for (const item of result.nodes) item.canvasDesign = { ...item.canvasDesign, parentId: item.id === move.id ? parentId : hierarchy.parents.get(item.id) ?? null };
   const moving = result.nodes.filter(item => movingIds.has(item.id));
   const remaining = result.nodes.filter(item => !movingIds.has(item.id));
   // A moved group must remain behind its children, including files with arbitrary z-order.
@@ -98,5 +98,5 @@ export function moveNode(data: CanvasData, move: MoveNode): CanvasData {
 
 export function nodeName(node: CanvasNode): string {
   const label = node.type === 'group' ? node.label : node.type === 'file' ? node.file?.split('/').pop() : node.type === 'link' ? node.url : node.text?.split('\n').find(line => line.trim());
-  return label?.trim() || (isHtmlNode(node) ? 'HTML' : node.type === 'text' ? node.canvasStudio?.shape === 'ellipse' ? 'Ellipse' : 'Rectangle' : node.type === 'group' ? 'Group' : 'File');
+  return label?.trim() || (isHtmlNode(node) ? 'HTML' : node.type === 'text' ? node.canvasDesign?.shape === 'ellipse' ? 'Ellipse' : 'Rectangle' : node.type === 'group' ? 'Group' : 'File');
 }

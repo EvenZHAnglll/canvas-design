@@ -2,31 +2,36 @@
 
 ## Project Status & Scope
 
-Canvas Design is a VS Code extension for visually editing JSON Canvas files alongside code and AI agents. The current version is a local-development MVP (`0.1.0`), with shapes, text, groups, connections, image/file references, nested Canvas previews, an Outliner, and a properties inspector.
+Canvas Design is a VS Code extension for visually editing JSON Canvas files alongside code and AI agents. The current release is an early MVP (`0.2.0`), with shapes, text, groups, connections, image/file references, nested Canvas previews, an Outliner, and a properties inspector.
 
-Keep the extension identity (`canvas-studio.canvas-vscode`), registered `canvasStudio.*` editor/command IDs, and `canvasStudio` file metadata stable when updating the Canvas Design display name.
+Keep the extension identity (`EvenSo.canvas-design`), registered `canvasDesign.*` editor/command IDs, and `canvasDesign` file metadata stable when updating the Canvas Design display name.
 
-Markdown rendering, image cropping, automatic layout, component instance overrides, multiplayer collaboration, and frontend code export are not implemented. Marketplace publishing is not configured; the `publisher` in `package.json` is a local-development placeholder.
+Markdown rendering, image cropping, automatic layout, component instance overrides, multiplayer collaboration, and frontend code export are not implemented. Marketplace packaging uses the official `@vscode/vsce` tool. The publisher ID is `EvenSo`, registered by the developer. Upload releases under that publisher. See `docs/publishing.md` for the release workflow.
 
 ## Project Structure & Module Organization
 
 - `src/extension.ts`: VS Code custom editor registration, document edits, Webview messaging, resource access, and diagnostics.
+- Node context menus use `data-vscode-context` in `src/webview/flow.tsx` and the native `webview/context` contribution. `canvasDesign.copyNodePath` validates the active document URI and node ID before copying `workspace/relative.canvas#node=<encoded-id>` through the VS Code clipboard. Keep references stable across node ordering and group changes; use an absolute file path outside workspace folders.
 - `src/file-insertion.ts`, `src/shared/file-drop.ts`, and `src/webview/file-drop.ts`: Explorer file drops and **Add to Current Canvas**. Prepare canonical-path-checked local file references, then commit one versioned `addNodes` operation through the Webview edit session. Preserve viewport drop coordinates, batch undo/redo, active-preview targeting, and the existing file picker workflow.
 - `src/shared/`: JSON Canvas validation and operations (`canvas.ts`), versioned edit sessions (`edit-session.ts`), group hierarchy and ordering (`hierarchy.ts`), and path rules (`paths.ts`).
-- `src/shared/colors.ts` and `src/webview/color-field.ts`: safe hex/RGBA conversion and compact Details color rows that open floating preset/RGBA pickers. Keep an open picker across document acknowledgements and close it when the inspected node changes. Authored alpha lives in `canvasStudio` as eight-digit hex; standard JSON Canvas `color` stays unchanged.
+- `src/shared/colors.ts` and `src/webview/color-field.ts`: safe hex/RGBA conversion and compact Details color rows that open floating preset/RGBA pickers. Keep an open picker across document acknowledgements and close it when the inspected node changes. Authored alpha lives in `canvasDesign` as eight-digit hex; standard JSON Canvas `color` stays unchanged.
 - `src/webview/main.ts`: header-free DOM editor shell, tools, left Outliner, full-height right Details inspector, and edit-session integration.
 - `src/webview/number-field.ts`: Details numeric scrubbing. Preview locally during a drag, commit once on release, and cancel on Escape, pointer cancellation, focus loss, or inspector/document changes.
 - `src/webview/flow.tsx`: React and `@xyflow/react` canvas renderer, node interactions, connections, and nested SVG previews; `style.css` contains editor styles.
 - `src/webview/flow-nodes.ts`: source-to-renderer node synchronization. Keep explicit dimensions and existing React Flow measurements across preview updates to avoid hiding and remeasuring the whole canvas.
-- `src/shared/html.ts` and `src/webview/html-preview.ts`: HTML cards are standard `text` nodes with `canvasStudio.type: "html"`, `html`, and `css`, plus fallback `text`. Render allowlisted static fragments in isolated Shadow DOM; preserve raw source, filter active content and resource URLs, and keep the Webview CSP unchanged. PNG export rasterizes live HTML previews before cloning, including nested SVG previews.
+- `src/shared/html.ts` and `src/webview/html-preview.ts`: HTML cards are standard `text` nodes with `canvasDesign.type: "html"`, `html`, and `css`, plus fallback `text`. Render allowlisted static fragments in isolated Shadow DOM; preserve raw source, filter active content and resource URLs, and keep the Webview CSP unchanged. PNG export rasterizes live HTML previews before cloning, including nested SVG previews.
 - `src/webview/screenshot.ts` and `src/shared/screenshot.ts`: actual-DOM PNG export and bounded full-canvas dimensions. Keep the offscreen positioning on a wrapper, preserve SVG descendant styles, and exclude editor controls without changing the live viewport.
 - `src/screenshot.ts` and `src/screenshot-bridge.ts`: versioned Webview capture requests, PNG validation, and a local workspace file queue for terminal agents. `scripts/capture-canvas.mjs` requests a PNG and returns its path; it is included in the VSIX. See `docs/screenshots.md` for the protocol.
 - `src/screenshot-command.ts`: shell-safe commands using the installed extension's absolute script path and the Canvas's workspace. Expose them with **Copy AI Screenshot Command** so other projects do not need this repository.
 - `tests/`: Node.js unit and mocked-extension tests, the VS Code mock, and real VS Code integration tests.
 - `scripts/`: esbuild build/watch automation, offline local VSIX packaging, Node.js test runner, and VS Code integration runner.
+- `scripts/validate-package.mjs`: PNG icon size and dimension checks shared by the local packer and official prepublish hook. Keep the icon at least 128 × 128, square, and at most 1,024,000 bytes.
 - `THIRD_PARTY_NOTICES.txt`: committed copyright and license texts for bundled runtime dependencies; generated by `scripts/third-party-notices.mjs` and included in the VSIX.
+- `.vscodeignore`: allowlist for official Marketplace packages. Include the three runtime bundles, screenshot CLI, and release/license documents; exclude development files, source maps, examples, and generated reference images.
+- `CHANGELOG.md`: user-facing release history, included in both local and Marketplace packages.
 - `examples/`: empty and prototype `.canvas` files, nested components, and image assets for development and integration tests.
-- `output/imagegen/`: generated UI comparison images and their prompts; these are reference artifacts, not extension runtime assets.
+- `media/`: shipped extension assets, including the AI-generated Canvas Design PNG icon. Include the icon in both local and Marketplace VSIX packages.
+- `output/imagegen/`: generated UI comparison images and generation prompts; these are reference artifacts, not extension runtime assets. The shipped icon is in `media/`.
 - `docs/design.md`: architecture and file-format conventions; `README.md`: setup, usage, and current limitations.
 - `.vscode/`: extension-host launch configuration, build task, and default `.canvas` editor association; `examples/.vscode/` sets the same association for the development workspace.
 - `dist/`, `.test-build/`, `node_modules/`, and `logs/`: generated bundles, temporary test output, dependencies, and local diagnostics; do not commit generated output.
@@ -34,30 +39,36 @@ Markdown rendering, image cropping, automatic layout, component instance overrid
 
 Keep reusable automation in `scripts/`. Update this guide and relevant documentation when adding directories, workflows, or changing architecture.
 
+For every Marketplace release, follow `docs/publishing.md` as the canonical release SOP. Complete the source, package, authentication, upload, verification, and release-record steps in order. Keep the tested VSIX and its checksum unchanged through upload, and associate the release tag with the recorded source commit.
+
 ## Build, Test, and Development Commands
 
 Run commands from the repository root. Prerequisites: Node.js 22+, pnpm 10+, and VS Code 1.95+ for extension development.
 
-| Command                  | Purpose                                                                                                                                                                                                  |
-| ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm install`           | Install dependencies using `pnpm-lock.yaml`; `pnpm-workspace.yaml` permits esbuild's dependency build script.                                                                                            |
-| `pnpm build`             | Run `scripts/build.mjs` to bundle the extension and Webview, including CSS and source maps, into `dist/`.                                                                                                |
-| `pnpm package`           | Build and run `scripts/package.mjs` to generate `dist/canvas-vscode-<version>.vsix` for local installation. Requires the system `zip` CLI; no network access is needed after dependencies are installed. |
-| `pnpm licenses:generate` | Regenerate `THIRD_PARTY_NOTICES.txt` from production source maps after `pnpm build`. Packaging also regenerates and includes this file.                                                                  |
-| `pnpm watch`             | Run the build script in watch mode.                                                                                                                                                                      |
-| `pnpm typecheck`         | Check source and tests with strict TypeScript; emit no files.                                                                                                                                            |
-| `pnpm test`              | Run `scripts/test.mjs`: bundle `tests/*.test.ts` with esbuild, run Node.js tests with a mocked VS Code API, and remove `.test-build/`.                                                                   |
-| `pnpm test:integration`  | Build and run `scripts/integration.mjs` in a real VS Code extension host.                                                                                                                                |
-| `pnpm test:browser`      | Run `tests/html-preview.browser.ts` in headless Chrome/Chromium with a temporary profile and private debugging pipe. Set `CHROME_EXECUTABLE` to override browser detection.                              |
-| `pnpm check`             | Run type checking, unit/mocked-extension tests, and build, in that order. Excludes formatting and real VS Code integration tests.                                                                        |
-| `pnpm format`            | Format the source, tests, scripts, docs, VS Code configuration, README, package manifest, and TypeScript configuration with Prettier.                                                                    |
-| `pnpm format:check`      | Check formatting for the same paths without rewriting files.                                                                                                                                             |
+| Command                    | Purpose                                                                                                                                                                                                               |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm install`             | Install dependencies using `pnpm-lock.yaml`; `pnpm-workspace.yaml` permits esbuild's dependency build script.                                                                                                         |
+| `pnpm build`               | Run `scripts/build.mjs` to bundle the extension and Webview, including CSS and source maps, into `dist/`.                                                                                                             |
+| `pnpm package`             | Build and run `scripts/package.mjs` to generate `dist/canvas-design-<version>.vsix` for local installation. Requires the system `zip` CLI; no network access is needed after dependencies are installed.              |
+| `pnpm package:marketplace` | Build, regenerate dependency notices, and package `dist/canvas-design-<version>.vsix` using official `vsce` validation. Use this artifact for Marketplace uploads. Replaces any local package with the same filename. |
+| `pnpm validate:package`    | Validate PNG icon dimensions and the Marketplace file size limit before packaging.                                                                                                                                    |
+| `pnpm licenses:generate`   | Regenerate `THIRD_PARTY_NOTICES.txt` from production source maps after `pnpm build`. Packaging also regenerates and includes this file.                                                                               |
+| `pnpm watch`               | Run the build script in watch mode.                                                                                                                                                                                   |
+| `pnpm typecheck`           | Check source and tests with strict TypeScript; emit no files.                                                                                                                                                         |
+| `pnpm test`                | Run `scripts/test.mjs`: bundle `tests/*.test.ts` with esbuild, run Node.js tests with a mocked VS Code API, and remove `.test-build/`.                                                                                |
+| `pnpm test:integration`    | Build and run `scripts/integration.mjs` in a real VS Code extension host.                                                                                                                                             |
+| `pnpm test:browser`        | Run `tests/html-preview.browser.ts` in headless Chrome/Chromium with a temporary profile and private debugging pipe. Set `CHROME_EXECUTABLE` to override browser detection.                                           |
+| `pnpm check`               | Run type checking, unit/mocked-extension tests, and build, in that order. Excludes formatting and real VS Code integration tests.                                                                                     |
+| `pnpm format`              | Format the source, tests, scripts, docs, VS Code configuration, README, package manifest, and TypeScript configuration with Prettier.                                                                                 |
+| `pnpm format:check`        | Check formatting for the same paths without rewriting files.                                                                                                                                                          |
 
 Open this directory in VS Code and press **F5** with **Run Canvas Design** selected. The launch configuration builds first and opens `examples/` in an extension development window. Open `prototype.canvas` to exercise the editor. After code changes, rebuild (or use `pnpm watch`) and reload the development window.
 
-For normal VS Code windows, install the generated VSIX using **Extensions: Install from VSIX…** or `code --install-extension dist/canvas-vscode-0.1.0.vsix --force`, then reload the window. Default editor resolution relies on the installed extension's `customEditors` contribution (`priority: default`) and any `workbench.editorAssociations` overrides. Keep explicit JSON source opening available.
+For normal VS Code windows, install the generated VSIX using **Extensions: Install from VSIX…** or `code --install-extension dist/canvas-design-0.2.0.vsix --force`, then reload the window. Default editor resolution relies on the installed extension's `customEditors` contribution (`priority: default`) and any `workbench.editorAssociations` overrides. Keep explicit JSON source opening available.
 
 Browser tests require Chrome/Chromium and use `CHROME_EXECUTABLE` to override detection. Set `CANVAS_BROWSER_QA_PATH` to retain a PNG of the editor after the HTML regression checks.
+
+Marketplace uploads require a Microsoft account and ownership of the manifest's Publisher ID. Release 0.1.1 is published. Use CLI publishing with a verified VSIX, or Update in the existing Marketplace entry; see docs/publishing.md. `@vscode/vsce` is a development-only dependency and is not included in the extension. Its optional signing postinstall script is disabled because packaging and Marketplace uploads do not require local signing. `vscode:prepublish` rebuilds and regenerates third-party notices so official packaging includes current license texts.
 
 Integration tests require a desktop environment and a VS Code executable. The runner checks the default macOS app installation, otherwise uses `code` from `PATH`; set `VSCODE_EXECUTABLE` to an executable path to override detection. It uses a temporary profile, extensions directory, and copy of `examples/`, and stops the run after 90 seconds. Example: `VSCODE_EXECUTABLE="/path/to/code" pnpm test:integration`.
 
@@ -80,7 +91,7 @@ Integration tests require a desktop environment and a VS Code executable. The ru
 
 ## Canvas & Editor Invariants
 
-- Preserve JSON Canvas 1.0 standard nodes (`text`, `file`, `link`, `group`) and edges, stable IDs, and unknown root/node/edge/extension fields. Put editor-specific visual and hierarchy metadata under `canvasStudio`.
+- Preserve JSON Canvas 1.0 standard nodes (`text`, `file`, `link`, `group`) and edges, stable IDs, and unknown root/node/edge/extension fields. Put editor-specific visual and hierarchy metadata under `canvasDesign`.
 - Keep VS Code's text document as the source of truth. Apply visual edits through `WorkspaceEdit`, preserving save, undo, and redo behavior.
 - Use the versioned edit protocol and `EditSession`; reject stale operations rather than overwrite newer source or AI edits. Invalid JSON must remain recoverable through the source editor and must not be replaced by visual edits.
 - Preserve source indentation, line endings, and final-newline conventions when serializing Canvas edits.
@@ -94,7 +105,7 @@ Integration tests require a desktop environment and a VS Code executable. The ru
 - Cover new behavior and bug regressions in the appropriate format, edit-session, hierarchy, path, or extension suite. Use descriptive behavior-based test names. No coverage threshold is configured.
 - Extension tests use `tests/vscode-mock.ts`; passing these tests does not establish actual Webview rendering or desktop interaction behavior.
 - Run `pnpm check` for application changes. Run real integration tests for changes affecting extension activation, Webview initialization, resource rendering, or source/preview synchronization when VS Code is available.
-- To validate the packaged extension in a separate project, run `pnpm package`, then `CANVAS_INTEGRATION_VSIX=dist/canvas-vscode-0.1.0.vsix pnpm test:integration`. This optional mode requires `unzip`, extracts the VSIX into the temporary test area, and launches that package's contents instead of the source checkout.
+- To validate the packaged extension in a separate project, run `pnpm package`, then `CANVAS_INTEGRATION_VSIX=dist/canvas-design-0.2.0.vsix pnpm test:integration`. This optional mode requires `unzip`, extracts the VSIX into the temporary test area, and launches that package's contents instead of the source checkout.
 - `tests/vscode.integration.ts` checks mounting the prototype, nested Canvas and image rendering, PNG export (including nonblank pixels), terminal screenshot requests, source/preview switching, external document edits, and invalid-JSON recovery. Set `CANVAS_SCREENSHOT_QA_PATH` to retain a test PNG for visual inspection. Manually verify drag/resize, connections, Outliner interactions, and inspector changes for affected UI behavior.
 - Report checks performed and any unavailable integration or manual validation. Documentation-only changes need relevant content and formatting checks, without rerunning unrelated application tests.
 

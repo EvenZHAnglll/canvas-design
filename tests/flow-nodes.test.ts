@@ -55,13 +55,13 @@ test('repeated numeric previews keep every node visible and retain existing meas
   for (const value of [230, 260, 200, 240]) {
     const preview = applyOperation(source, {
       type: 'updateNodes',
-      updates: [{ id: 'shape', patch: { width: value, canvasStudio: { fontSize: value / 10 } } }],
+      updates: [{ id: 'shape', patch: { width: value, canvasDesign: { fontSize: value / 10 } } }],
     });
     current = syncFlowNodes(current, preview.nodes, {}, selected);
     assertVisible(current);
     assert.equal(current[0].width, value);
     assert.equal(current[0].style?.width, value);
-    assert.equal(current[0].data.canvas.canvasStudio?.fontSize, value / 10);
+    assert.equal(current[0].data.canvas.canvasDesign?.fontSize, value / 10);
     current.forEach((node, index) => assert.equal(node.measured, measurements[index]));
   }
   const cancelled = syncFlowNodes(current, source.nodes, {}, selected);

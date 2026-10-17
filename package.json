@@ -1,10 +1,26 @@
 {
-  "name": "canvas-vscode",
+  "name": "canvas-design",
   "displayName": "Canvas Design",
   "description": "Edit JSON Canvas design files in VS Code, alongside your code and AI agent.",
-  "version": "0.1.0",
-  "publisher": "canvas-studio",
+  "version": "0.2.0",
+  "publisher": "EvenSo",
+  "icon": "media/icon.png",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/EvenZHAnglll/canvas-design.git"
+  },
+  "homepage": "https://github.com/EvenZHAnglll/canvas-design#readme",
+  "bugs": {
+    "url": "https://github.com/EvenZHAnglll/canvas-design/issues"
+  },
+  "keywords": [
+    "canvas",
+    "json-canvas",
+    "design",
+    "diagram",
+    "whiteboard"
+  ],
   "engines": {
     "vscode": "^1.95.0",
     "node": ">=22",
@@ -17,12 +33,12 @@
   "main": "./dist/extension.cjs",
   "activationEvents": [
     "onStartupFinished",
-    "onCustomEditor:canvasStudio.editor"
+    "onCustomEditor:canvasDesign.editor"
   ],
   "contributes": {
     "customEditors": [
       {
-        "viewType": "canvasStudio.editor",
+        "viewType": "canvasDesign.editor",
         "displayName": "Canvas Design",
         "selector": [
           {
@@ -34,83 +50,104 @@
     ],
     "commands": [
       {
-        "command": "canvasStudio.addFilesToCanvas",
+        "command": "canvasDesign.copyNodePath",
+        "title": "Canvas Design: Copy Node Path",
+        "shortTitle": "Copy Node Path",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "canvasDesign.addFilesToCanvas",
         "title": "Canvas Design: Add to Current Canvas",
         "icon": "$(add)"
       },
       {
-        "command": "canvasStudio.openPreview",
+        "command": "canvasDesign.openPreview",
         "title": "Canvas Design: Open Visual Editor",
         "icon": "$(preview)"
       },
       {
-        "command": "canvasStudio.openSource",
+        "command": "canvasDesign.openSource",
         "title": "Canvas Design: Open JSON Source",
         "icon": "$(code)"
       },
       {
-        "command": "canvasStudio.exportScreenshot",
+        "command": "canvasDesign.exportScreenshot",
         "title": "Canvas Design: Export Screenshot",
         "icon": "$(device-camera)"
       },
       {
-        "command": "canvasStudio.copyScreenshotCommand",
+        "command": "canvasDesign.copyScreenshotCommand",
         "title": "Canvas Design: Copy AI Screenshot Command",
         "icon": "$(copy)"
       },
       {
-        "command": "canvasStudio.newCanvas",
+        "command": "canvasDesign.newCanvas",
         "title": "Canvas Design: Create Canvas"
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "canvasDesign.copyNodePath",
+          "when": "false"
+        }
+      ],
+      "webview/context": [
+        {
+          "command": "canvasDesign.copyNodePath",
+          "when": "webviewId == canvasDesign.editor && webviewSection == canvasNode",
+          "group": "navigation"
+        }
+      ],
       "editor/context": [
         {
-          "command": "canvasStudio.copyScreenshotCommand",
+          "command": "canvasDesign.copyScreenshotCommand",
           "when": "resourceExtname == .canvas",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
-          "command": "canvasStudio.addFilesToCanvas",
-          "when": "!explorerResourceIsFolder && resourceScheme == file && activeCustomEditorId == canvasStudio.editor",
+          "command": "canvasDesign.addFilesToCanvas",
+          "when": "!explorerResourceIsFolder && resourceScheme == file && activeCustomEditorId == canvasDesign.editor",
           "group": "navigation"
         },
         {
-          "command": "canvasStudio.copyScreenshotCommand",
+          "command": "canvasDesign.copyScreenshotCommand",
           "when": "resourceExtname == .canvas",
           "group": "navigation"
         }
       ],
       "editor/title": [
         {
-          "command": "canvasStudio.copyScreenshotCommand",
-          "when": "activeCustomEditorId == canvasStudio.editor"
+          "command": "canvasDesign.copyScreenshotCommand",
+          "when": "activeCustomEditorId == canvasDesign.editor"
         },
         {
-          "command": "canvasStudio.exportScreenshot",
-          "when": "activeCustomEditorId == canvasStudio.editor",
+          "command": "canvasDesign.exportScreenshot",
+          "when": "activeCustomEditorId == canvasDesign.editor",
           "group": "navigation"
         },
         {
-          "command": "canvasStudio.openPreview",
-          "when": "resourceExtname == .canvas && activeCustomEditorId != canvasStudio.editor",
+          "command": "canvasDesign.openPreview",
+          "when": "resourceExtname == .canvas && activeCustomEditorId != canvasDesign.editor",
           "group": "navigation"
         },
         {
-          "command": "canvasStudio.openSource",
-          "when": "activeCustomEditorId == canvasStudio.editor",
+          "command": "canvasDesign.openSource",
+          "when": "activeCustomEditorId == canvasDesign.editor",
           "group": "navigation"
         }
       ]
     }
   },
   "scripts": {
-    "format": "prettier --write src tests scripts docs .vscode README.md package.json tsconfig.json",
-    "format:check": "prettier --check src tests scripts docs .vscode README.md package.json tsconfig.json",
+    "format": "prettier --write src tests scripts docs .vscode README.md CHANGELOG.md package.json tsconfig.json",
+    "format:check": "prettier --check src tests scripts docs .vscode README.md CHANGELOG.md package.json tsconfig.json",
     "build": "node scripts/build.mjs",
     "package": "pnpm build && node scripts/package.mjs",
+    "package:marketplace": "vsce package --no-dependencies --githubBranch main --out dist/",
+    "validate:package": "node scripts/validate-package.mjs",
     "licenses:generate": "node scripts/third-party-notices.mjs",
     "watch": "node scripts/build.mjs --watch",
     "typecheck": "tsc --noEmit",
@@ -118,7 +155,7 @@
     "test:browser": "node scripts/test-browser.mjs",
     "test:integration": "pnpm build && node scripts/integration.mjs",
     "check": "pnpm typecheck && pnpm test && pnpm build",
-    "vscode:prepublish": "pnpm build"
+    "vscode:prepublish": "pnpm validate:package && pnpm build && pnpm licenses:generate"
   },
   "dependencies": {
     "@xyflow/react": "^12.8.5",
@@ -131,6 +168,7 @@
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@types/vscode": "^1.95.0",
+    "@vscode/vsce": "^4.0.0",
     "esbuild": "^0.27.0",
     "prettier": "^3.6.2",
     "typescript": "^5.7.0"

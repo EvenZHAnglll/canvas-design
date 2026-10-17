@@ -15,8 +15,8 @@ test('infers the smallest containing group and avoids cycles for equal-size grou
   assert.equal(getHierarchy(data.nodes).parents.get('same'), null);
 });
 test('explicit root membership overrides containment and cyclic metadata is recoverable', () => {
-  const data = fixture(); data.nodes[2].canvasStudio = { parentId: null };
-  data.nodes[0].canvasStudio = { parentId: 'card' }; data.nodes[1].canvasStudio = { parentId: 'screen' };
+  const data = fixture(); data.nodes[2].canvasDesign = { parentId: null };
+  data.nodes[0].canvasDesign = { parentId: 'card' }; data.nodes[1].canvasDesign = { parentId: 'screen' };
   const tree = getHierarchy(data.nodes);
   assert.equal(tree.parents.get('title'), null); assert.equal(tree.parents.get('screen'), null); assert.equal(tree.parents.get('card'), null);
 });
@@ -28,7 +28,7 @@ test('moving into and out of a group preserves absolute coordinates and metadata
   assert.deepEqual(result.vendor, data.vendor); assert.deepEqual(result.nodes.find(item => item.id === 'outside')!.custom, { keep: 'node' });
   const root = moveNode(result, { type: 'moveNode', id: 'title', targetId: null, placement: 'inside' });
   assert.equal(getHierarchy(root.nodes).parents.get('title'), null);
-  assert.equal(data.nodes[4].canvasStudio, undefined);
+  assert.equal(data.nodes[4].canvasDesign, undefined);
 });
 test('outliner before/after reorder the whole subtree with standard ascending z-order', () => {
   const result = moveNode(fixture(), { type: 'moveNode', id: 'card', targetId: 'footer', placement: 'before' });
@@ -67,7 +67,7 @@ test('reordering overlapping PNG layers changes stacking order without changing 
     y: 0,
     width: 200,
     height: 200,
-    canvasStudio: { fill: '#ffffff', stroke: '#123456', radius: 24, vendor: 'keep' },
+    canvasDesign: { fill: '#ffffff', stroke: '#123456', radius: 24, vendor: 'keep' },
   };
   const data: CanvasData = { nodes: [background, image], edges: [] };
   const behind = moveNode(data, {
@@ -93,7 +93,7 @@ test('reordering overlapping PNG layers changes stacking order without changing 
   const reordered = inFront.nodes.find((item) => item.id === image.id)!;
   assert.deepEqual(reordered, {
     ...image,
-    canvasStudio: { ...image.canvasStudio, parentId: null },
+    canvasDesign: { ...image.canvasDesign, parentId: null },
   });
   assert.deepEqual(data.nodes, [background, image]);
 });

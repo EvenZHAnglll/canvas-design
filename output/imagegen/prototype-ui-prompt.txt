@@ -1,6 +1,6 @@
 Use case: ui-mockup
 Asset type: high-fidelity UI design mockup derived from an existing JSON Canvas prototype.
-Primary request: Generate one polished, crisp, front-facing desktop dashboard UI image, faithfully translating the layout and exact content of examples/prototype.canvas and its nested share-card.canvas and analytics.svg. This is the product UI itself, not the Canvas Studio editor and not a photograph of a device.
+Primary request: Generate one polished, crisp, front-facing desktop dashboard UI image, faithfully translating the layout and exact content of examples/prototype.canvas and its nested share-card.canvas and analytics.svg. This is the product UI itself, not the Canvas Design editor and not a photograph of a device.
 Composition: landscape approximately 880:650, one complete dashboard filling the image, with comfortable 28-unit exterior padding on a pale cool-gray #e9edf5 surface. Strictly preserve this source layout:
 - Across the top, a white rounded navigation bar at x28 y28 width824 height60: small geometric diamond brand mark followed by "FORMA" at left, then "Overview", "Projects", "Team" on the right. Mark Overview as active subtly.
 - Under navigation, heading at x28 y108 width540 height84: "Your workspace, at a glance." in a clear large semibold sans-serif, with "Design the next thing together." beneath as smaller secondary text. Pale near-white #f5f7fb background if needed, very subtle border.

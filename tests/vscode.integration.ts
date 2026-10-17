@@ -22,7 +22,7 @@ async function until(predicate: () => boolean, message: string) {
   }
 }
 export async function run() {
-  const extension = vscode.extensions.getExtension('canvas-studio.canvas-vscode');
+  const extension = vscode.extensions.getExtension('EvenSo.canvas-design');
   assert.ok(extension, 'Development extension is loaded');
   const api = (await extension.activate()) as { getDiagnostics(): Diagnostic[] };
   const root = vscode.workspace.workspaceFolders![0].uri;
@@ -36,7 +36,7 @@ export async function run() {
   const input = vscode.window.tabGroups.activeTabGroup.activeTab!.input as vscode.TabInputCustom;
   assert.equal(
     input.viewType,
-    'canvasStudio.editor',
+    'canvasDesign.editor',
     'Canvas Design is the default .canvas editor',
   );
   await until(
@@ -56,12 +56,21 @@ export async function run() {
   console.log(
     'PASS: normal .canvas open selected Canvas Design; 11 nodes, nested Canvas, and local image rendered.',
   );
+  const nodeDocument = await vscode.workspace.openTextDocument(uri);
+  const nodeId = JSON.parse(nodeDocument.getText()).nodes[0].id as string;
+  const nodeReference = await vscode.commands.executeCommand<string>('canvasDesign.copyNodePath', {
+    canvasDesignNodeId: nodeId,
+    canvasDesignUri: uri.toString(),
+  });
+  assert.equal(nodeReference, `prototype.canvas#node=${encodeURIComponent(nodeId)}`);
+  assert.equal(await vscode.env.clipboard.readText(), nodeReference);
+  console.log('PASS: node path command copies the project-relative Canvas path and stable node ID.');
   const screenshotUri = vscode.Uri.joinPath(root, 'prototype-export.png');
   const screenshot = await vscode.commands.executeCommand<{
     width: number;
     height: number;
     version: number;
-  }>('canvasStudio.exportScreenshot', uri, screenshotUri);
+  }>('canvasDesign.exportScreenshot', uri, screenshotUri);
   assert.ok(screenshot && screenshot.width > 100 && screenshot.height > 100);
   const png = Buffer.from(await vscode.workspace.fs.readFile(screenshotUri));
   assert.equal(png.subarray(0, 8).toString('hex'), '89504e470d0a1a0a');
@@ -101,7 +110,7 @@ export async function run() {
   console.log(
     'PASS: absolute installed-script command exported PNG from a separate project directory.',
   );
-  await vscode.commands.executeCommand('canvasStudio.openSource', uri);
+  await vscode.commands.executeCommand('canvasDesign.openSource', uri);
   await until(
     () => vscode.window.activeTextEditor?.document.uri.toString() === uri.toString(),
     'Source toggle did not open the JSON document',
@@ -116,7 +125,7 @@ export async function run() {
     width: 160,
     height: 80,
     text: 'Agent update',
-    canvasStudio: { type: 'html', html: '<div class="card">Agent HTML update</div>', css: '.card { padding: 12px; background: #19c37d; height: 100%; }' },
+    canvasDesign: { type: 'html', html: '<div class="card">Agent HTML update</div>', css: '.card { padding: 12px; background: #19c37d; height: 100%; }' },
   });
   const edit = new vscode.WorkspaceEdit();
   edit.replace(
@@ -125,14 +134,14 @@ export async function run() {
     JSON.stringify(source, null, 2),
   );
   await vscode.workspace.applyEdit(edit);
-  await vscode.commands.executeCommand('canvasStudio.openPreview', uri);
+  await vscode.commands.executeCommand('canvasDesign.openPreview', uri);
   await until(
     () => api.getDiagnostics().some((item) => item.uri === uri.toString() && item.nodeCount === 12 && item.htmlCount === 1),
     'Agent source edits were not reflected in the preview',
   );
   console.log('PASS: source / preview toggles and external document edits.');
   const htmlScreenshotUri = vscode.Uri.joinPath(root, 'html-export.png');
-  await vscode.commands.executeCommand('canvasStudio.exportScreenshot', uri, htmlScreenshotUri);
+  await vscode.commands.executeCommand('canvasDesign.exportScreenshot', uri, htmlScreenshotUri);
   assert.ok((await vscode.workspace.fs.stat(htmlScreenshotUri)).size > 10_000);
   console.log('PASS: HTML text-node extension renders after source edits and exports with the Canvas.');
   const noteUri = vscode.Uri.joinPath(root, 'drop-note.md');
@@ -140,7 +149,7 @@ export async function run() {
   const childUri = vscode.Uri.joinPath(root, 'components', 'share-card.canvas');
   await vscode.workspace.fs.writeFile(noteUri, Buffer.from('# Referenced Markdown\n'));
   await vscode.workspace.fs.writeFile(imageUri, png);
-  await vscode.commands.executeCommand('canvasStudio.addFilesToCanvas', noteUri, [noteUri, imageUri, childUri]);
+  await vscode.commands.executeCommand('canvasDesign.addFilesToCanvas', noteUri, [noteUri, imageUri, childUri]);
   await until(() => api.getDiagnostics().some(item => item.uri === uri.toString() && item.nodeCount === 15 && item.loadedImages === 2 && item.nestedCount === 2), 'Explorer file insertion did not render all three references');
   assert.deepEqual(JSON.parse(document.getText()).nodes.slice(-3).map((node: { type: string; file: string }) => [node.type, node.file]), [['file', 'drop-note.md'], ['file', 'drop-image.png'], ['file', 'components/share-card.canvas']]);
   await vscode.commands.executeCommand('undo');

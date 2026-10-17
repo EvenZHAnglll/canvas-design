@@ -16,6 +16,7 @@ const session = new EditSession();
 let data: CanvasData = { nodes: [], edges: [] };
 let renderer: ReturnType<typeof createCanvasRenderer>;
 let version = -1;
+let documentUri = '';
 let assets: Record<string, AssetPreview> = {};
 let tool: Tool = 'select';
 let selection = new Set<string>();
@@ -185,6 +186,7 @@ window.addEventListener('message', event => {
     const state = message as CanvasState;
     if (state.version < version) return;
     version = state.version; invalid = !!state.error;
+    documentUri = state.uri;
     (document.getElementById('export-screenshot') as HTMLButtonElement).disabled = invalid || screenshotBusy;
     stage.setAttribute('aria-label', `Design canvas: ${state.name}`);
     document.getElementById('error')!.hidden = !invalid;
@@ -208,7 +210,7 @@ window.addEventListener('message', event => {
 
 function updateRenderer() {
   if (!renderer) return;
-  renderer.update({ data: inspectorPreview ? applyOperation(data, inspectorPreview) : data, assets, selected: new Set(selection), tool, version, invalid,
+  renderer.update({ data: inspectorPreview ? applyOperation(data, inspectorPreview) : data, assets, selected: new Set(selection), tool, version, invalid, documentUri,
     onSelect(ids) {
       if (ids.length === selection.size && ids.every(id => selection.has(id))) return;
       selection = new Set(ids); selectedEdge = undefined; syncSelection(true);
@@ -275,7 +277,7 @@ function finishDrop(move: MoveNode) {
   finally { draggedNode = undefined; clearDropMarks(); }
 }
 function iconFor(node: CanvasNode): string {
-  return isHtmlNode(node) ? '<>' : node.type === 'group' ? '▤' : node.type === 'file' ? /\.canvas$/i.test(node.file ?? '') ? '⊞' : '▧' : node.type === 'link' ? '↗' : node.canvasStudio?.shape === 'ellipse' ? '○' : node.text ? 'T' : '▢';
+  return isHtmlNode(node) ? '<>' : node.type === 'group' ? '▤' : node.type === 'file' ? /\.canvas$/i.test(node.file ?? '') ? '⊞' : '▧' : node.type === 'link' ? '↗' : node.canvasDesign?.shape === 'ellipse' ? '○' : node.text ? 'T' : '▢';
 }
 function renderOutliner() {
   const scroll = outliner.scrollTop;
@@ -449,29 +451,29 @@ function renderInspector() {
   if (!isFramelessFileNode(node)) {
     properties.append(element('h4', 'section-title', 'Appearance'));
     properties.append(
-      colorField(node.id, 'Fill', style.fill, value => patch({ canvasStudio: { fill: value } })),
-      colorField(node.id, 'Stroke', style.stroke, value => patch({ canvasStudio: { stroke: value } })),
+      colorField(node.id, 'Fill', style.fill, value => patch({ canvasDesign: { fill: value } })),
+      colorField(node.id, 'Stroke', style.stroke, value => patch({ canvasDesign: { stroke: value } })),
     );
-    if (style.shape !== 'ellipse') properties.append(numeric('Corner radius', style.radius, 0, 256, value => ({ canvasStudio: { radius: value } })));
+    if (style.shape !== 'ellipse') properties.append(numeric('Corner radius', style.radius, 0, 256, value => ({ canvasDesign: { radius: value } })));
   }
   if (isHtmlNode(node)) {
     const editVersion = version;
     for (const [key, label] of [['html', 'HTML'], ['css', 'CSS'], ['text', 'Fallback text']] as const) {
       properties.append(element('h4', 'section-title', label));
       const input = element('textarea', key === 'text' ? 'content-input' : 'content-input code-input');
-      const value = key === 'text' ? node.text : node.canvasStudio?.[key];
+      const value = key === 'text' ? node.text : node.canvasDesign?.[key];
       input.value = typeof value === 'string' ? value : '';
       input.setAttribute('aria-label', label);
       input.spellcheck = false;
       input.addEventListener('change', () => {
         if (version !== editVersion) { notice('The file changed; HTML edit cancelled.'); return; }
-        patch(key === 'text' ? { text: input.value } : { canvasStudio: { [key]: input.value } });
+        patch(key === 'text' ? { text: input.value } : { canvasDesign: { [key]: input.value } });
       });
       properties.append(input);
     }
     properties.append(element('p', 'muted', 'Static HTML and CSS. Changes apply when you leave the field. Fallback text is shown by other Canvas readers.'));
   }
-  if (node.type === 'text' && !isHtmlNode(node)) properties.append(numeric('Font size', style.fontSize, 1, 256, value => ({ canvasStudio: { fontSize: value } })));
+  if (node.type === 'text' && !isHtmlNode(node)) properties.append(numeric('Font size', style.fontSize, 1, 256, value => ({ canvasDesign: { fontSize: value } })));
   if (node.type === 'group' || node.type === 'text' && !isHtmlNode(node)) {
     properties.append(element('h4', 'section-title', node.type === 'group' ? 'Label' : 'Content'));
     const input = element('textarea', 'content-input'); input.value = node.type === 'text' ? node.text ?? '' : node.label ?? ''; input.setAttribute('aria-label', 'Content');
@@ -491,8 +493,8 @@ function addShape(kind: Tool, x: number, y: number, width: number, height: numbe
   const id = uid(); selection = new Set([id]); selectedEdge = undefined;
   const node: CanvasNode = { id, type: kind === 'group' ? 'group' : 'text', x: Math.round(x), y: Math.round(y), width: Math.round(width), height: Math.round(height) };
   if (kind === 'group') node.label = 'Group';
-  else if (kind === 'html') { node.text = 'HTML card'; node.canvasStudio = { type: 'html', html: defaultHtml, css: defaultCss, radius: 12 }; }
-  else { node.text = kind === 'text' ? 'Double-click to edit' : ''; node.canvasStudio = { shape: kind === 'ellipse' ? 'ellipse' : 'rectangle', fill: kind === 'ellipse' ? '#eee9ff' : '#ffffff', stroke: '#b6a7ef', radius: kind === 'text' ? 0 : 16, fontSize: 16 }; }
+  else if (kind === 'html') { node.text = 'HTML card'; node.canvasDesign = { type: 'html', html: defaultHtml, css: defaultCss, radius: 12 }; }
+  else { node.text = kind === 'text' ? 'Double-click to edit' : ''; node.canvasDesign = { shape: kind === 'ellipse' ? 'ellipse' : 'rectangle', fill: kind === 'ellipse' ? '#eee9ff' : '#ffffff', stroke: '#b6a7ef', radius: kind === 'text' ? 0 : 16, fontSize: 16 }; }
   commit({ type: 'addNodes', nodes: [node], prepend: kind === 'group' });
 }
 function removeSelection() {

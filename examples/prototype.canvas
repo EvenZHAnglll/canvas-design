@@ -8,7 +8,7 @@
       "width": 880,
       "height": 650,
       "label": "01 / Dashboard prototype",
-      "canvasStudio": {
+      "canvasDesign": {
         "fill": "#e9edf5",
         "stroke": "#c9d2e2",
         "radius": 24
@@ -22,7 +22,7 @@
       "width": 824,
       "height": 60,
       "text": "\u25c8  FORMA                         Overview       Projects       Team",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "rectangle",
         "fill": "#ffffff",
         "stroke": "#e2e7f0",
@@ -38,7 +38,7 @@
       "width": 540,
       "height": 84,
       "text": "Your workspace, at a glance.\nDesign the next thing together.",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "rectangle",
         "fill": "#f5f7fb",
         "stroke": "#e9edf5",
@@ -54,7 +54,7 @@
       "width": 64,
       "height": 64,
       "text": "YZ",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "ellipse",
         "fill": "#eee9ff",
         "stroke": "#b6a7ef",
@@ -70,7 +70,7 @@
       "width": 252,
       "height": 102,
       "text": "Active projects\n12",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "rectangle",
         "fill": "#ffffff",
         "stroke": "#e2e7f0",
@@ -86,7 +86,7 @@
       "width": 252,
       "height": 102,
       "text": "Components\n48",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "rectangle",
         "fill": "#ffffff",
         "stroke": "#e2e7f0",
@@ -102,7 +102,7 @@
       "width": 280,
       "height": 102,
       "text": "Ready for feedback\n03",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "rectangle",
         "fill": "#eee9ff",
         "stroke": "#d8cff5",
@@ -136,7 +136,7 @@
       "width": 310,
       "height": 175,
       "text": "DESIGN NOTES\n\nThe chart is a local SVG image.\nThe card is a referenced Canvas.\nAgent edits stay in the same files.",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "rectangle",
         "fill": "#fff8e7",
         "stroke": "#ecd69e",
@@ -152,7 +152,7 @@
       "width": 310,
       "height": 138,
       "text": "AGENT HANDOFF\n\nKeep node IDs stable.\nReview the JSON source in VS Code.",
-      "canvasStudio": {
+      "canvasDesign": {
         "shape": "rectangle",
         "fill": "#f0edff",
         "stroke": "#c8bdf2",

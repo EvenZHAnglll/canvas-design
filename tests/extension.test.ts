@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, writeFile, rm, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, rm, symlink } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import * as mock from './vscode-mock';
@@ -8,11 +8,12 @@ import { activate } from '../src/extension';
 import { parseCanvas, type CanvasData } from '../src/shared/canvas';
 
 const empty: CanvasData = { nodes: [], edges: [] };
-async function setup(data: CanvasData | string = empty) {
+async function setup(data: CanvasData | string = empty, canvasFile = 'main.canvas') {
   mock.reset();
-  const root = await mkdtemp(path.join(os.tmpdir(), 'canvas-studio-test-'));
-  const uri = mock.Uri.file(path.join(root, 'main.canvas'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'canvas-design-test-'));
+  const uri = mock.Uri.file(path.join(root, canvasFile));
   const text = typeof data === 'string' ? data : JSON.stringify(data);
+  await mkdir(path.dirname(uri.fsPath), { recursive: true });
   await writeFile(uri.fsPath, text);
   mock.workspace.workspaceFolders = [{ uri: mock.Uri.file(root) }];
   const document = new mock.Document(uri, text);
@@ -107,7 +108,7 @@ test('source, save, undo, and redo requests delegate to VS Code', async () => {
 test('copy AI screenshot command resolves the installed script and current project automatically', async () => {
   const ctx = await setup();
   try {
-    const copy = mock.commandHandlers.get('canvasStudio.copyScreenshotCommand')! as () => Promise<string>;
+    const copy = mock.commandHandlers.get('canvasDesign.copyScreenshotCommand')! as () => Promise<string>;
     const command = await copy();
     assert.equal(await mock.env.clipboard.readText(), command);
     assert.ok(command.includes(path.join(process.cwd(), 'scripts', 'capture-canvas.mjs')));
@@ -116,6 +117,117 @@ test('copy AI screenshot command resolves the installed script and current proje
     mock.workspace.workspaceFolders = [];
     await assert.rejects(copy(), /project folder/);
   } finally { await ctx.close(); }
+});
+
+test('node paths use the containing project root and stable node IDs rather than array positions or groups', async () => {
+  const node = {
+    id: 'target /#中文%',
+    type: 'text' as const,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 80,
+    text: 'Target',
+  };
+  const ctx = await setup({ nodes: [node], edges: [] }, 'design/my canvas.canvas');
+  try {
+    // Another workspace root listed first must not change the relative path.
+    mock.workspace.workspaceFolders.unshift({
+      uri: mock.Uri.file(path.join(ctx.root, 'other-project')),
+    });
+    const copy = mock.commandHandlers.get('canvasDesign.copyNodePath')!;
+    const context = { canvasDesignNodeId: node.id, canvasDesignUri: ctx.uri.toString() };
+    const expected = `design/my canvas.canvas#node=${encodeURIComponent(node.id)}`;
+    const original = ctx.document.getText();
+    assert.equal(await copy(context), expected);
+    assert.equal(await mock.env.clipboard.readText(), expected);
+    assert.equal(decodeURIComponent(expected.split('#node=')[1]), node.id);
+    assert.equal(ctx.document.getText(), original);
+    assert.equal(ctx.document.version, 1);
+
+    ctx.document.setText(
+      JSON.stringify({
+        nodes: [
+          { id: 'group', type: 'group', x: 0, y: 0, width: 500, height: 300 },
+          { ...node, canvasDesign: { parentId: 'group' } },
+        ],
+        edges: [],
+      }),
+    );
+    assert.equal(await copy(context), expected);
+    mock.workspace.workspaceFolders = [];
+    assert.equal(
+      await copy(context),
+      `${ctx.uri.fsPath.split(path.sep).join('/')}#node=${encodeURIComponent(node.id)}`,
+    );
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('node path requests reject missing, deleted, invalid, or inactive targets without replacing the clipboard', async () => {
+  const ctx = await setup({
+    nodes: [{ id: 'a', type: 'text', text: '', x: 0, y: 0, width: 100, height: 80 }],
+    edges: [],
+  });
+  try {
+    const copy = mock.commandHandlers.get('canvasDesign.copyNodePath')!;
+    const context = { canvasDesignNodeId: 'a', canvasDesignUri: ctx.uri.toString() };
+    await copy(context);
+    const clipboard = await mock.env.clipboard.readText();
+    await assert.rejects(async () => copy(), /Right-click/);
+    await assert.rejects(async () => copy({ ...context, canvasDesignNodeId: 42 }), /Right-click/);
+    await assert.rejects(
+      async () => copy({ ...context, canvasDesignNodeId: 'deleted' }),
+      /no longer exists/,
+    );
+    await assert.rejects(
+      async () =>
+        copy({
+          ...context,
+          canvasDesignUri: mock.Uri.file(path.join(ctx.root, 'other.canvas')).toString(),
+        }),
+      /active Canvas changed/,
+    );
+    ctx.panel.active = false;
+    await assert.rejects(async () => copy(context), /active Canvas changed/);
+    ctx.panel.active = true;
+    ctx.document.setText('{ broken');
+    await assert.rejects(async () => copy(context), /Invalid JSON/);
+    ctx.document.setText(JSON.stringify(empty));
+    await assert.rejects(async () => copy(context), /no longer exists/);
+    assert.equal(await mock.env.clipboard.readText(), clipboard);
+  } finally {
+    await ctx.close();
+  }
+});
+
+test('node path context cannot target a different Canvas with the same node ID', async () => {
+  const ctx = await setup({
+    nodes: [{ id: 'shared', type: 'text', text: '', x: 0, y: 0, width: 100, height: 80 }],
+    edges: [],
+  });
+  const otherPanel = new mock.Panel();
+  try {
+    const otherUri = mock.Uri.file(path.join(ctx.root, 'other.canvas'));
+    const otherDocument = new mock.Document(otherUri, ctx.document.getText());
+    mock.workspace.textDocuments.push(otherDocument);
+    await mock.registeredProvider.resolveCustomTextEditor(otherDocument, otherPanel);
+    await otherPanel.send({ type: 'ready' });
+    ctx.panel.active = false;
+    const copy = mock.commandHandlers.get('canvasDesign.copyNodePath')!;
+    await assert.rejects(
+      async () => copy({ canvasDesignNodeId: 'shared', canvasDesignUri: ctx.uri.toString() }),
+      /active Canvas changed/,
+    );
+    assert.equal(
+      await copy({ canvasDesignNodeId: 'shared', canvasDesignUri: otherUri.toString() }),
+      'other.canvas#node=shared',
+    );
+  } finally {
+    otherPanel.dispose();
+    await ctx.close();
+  }
 });
 
 test('file insertion prepares a validated batch and commits it through the versioned editor protocol', async () => {
@@ -145,7 +257,7 @@ test('file insertion prepares a validated batch and commits it through the versi
 test('Explorer command targets only a ready active Canvas preview and supports multi-selection', async () => {
   const ctx = await setup();
   try {
-    const add = mock.commandHandlers.get('canvasStudio.addFilesToCanvas')!;
+    const add = mock.commandHandlers.get('canvasDesign.addFilesToCanvas')!;
     const files = ['notes.md', 'image.png'].map(file => mock.Uri.file(path.join(ctx.root, file)));
     await add(files[0], files);
     assert.deepEqual(ctx.panel.messages.at(-1), { type: 'insertFiles', uris: files.map(uri => uri.toString()) });

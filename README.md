@@ -2,7 +2,7 @@
 
 A VS Code extension for visually editing [JSON Canvas](https://jsoncanvas.org/spec/1.0/) files alongside your code. Sketch layouts, connect ideas, and keep design references in your repository. The same readable `.canvas` file can be edited visually, as JSON, or by a coding agent.
 
-**Early MVP.** Install from source for now; the extension is not published on the VS Code Marketplace.
+**Early MVP.** See the current feature set and limitations below.
 
 ## Features
 
@@ -15,22 +15,20 @@ A VS Code extension for visually editing [JSON Canvas](https://jsoncanvas.org/sp
 - VS Code save, undo, redo, and JSON source editing, with previews that refresh after external edits.
 - Trackpad navigation and support for light, dark, and high-contrast editor themes.
 - Full-canvas PNG export, plus a terminal script that lets AI agents request the editor's rendering.
+- Copy a node's project-relative Canvas path and stable ID from its right-click menu to share with AI agents.
 
 Try the [example dashboard](examples/prototype.canvas), or start with an [empty canvas](examples/empty.canvas).
 The [HTML card example](examples/html-card.canvas) shows an editable fragment and its CSS.
 
 ## Install
 
-Requires VS Code **1.95+**. Building requires Node.js **22+**, pnpm **10+**, and the system `zip` command.
+Requires VS Code **1.95+**. Install [Canvas Design from the Visual Studio Marketplace](https://marketplace.visualstudio.com/items?itemName=EvenSo.canvas-design), or search for `@id:EvenSo.canvas-design` in VS Code's Extensions view.
 
 ```sh
-git clone https://github.com/EvenZHAnglll/canvas-design.git
-cd canvas-design
-pnpm install --frozen-lockfile
-pnpm package
+code --install-extension EvenSo.canvas-design
 ```
 
-In VS Code, run **Extensions: Install from VSIX…** and select `dist/canvas-vscode-0.1.0.vsix`, then run **Developer: Reload Window**. The package filename follows the version in `package.json`.
+Then open a project folder and run **Canvas Design: Create Canvas**, or open an existing `.canvas` file. If you have a downloaded VSIX, use **Extensions: Install from VSIX…**.
 
 ## Usage
 
@@ -45,6 +43,7 @@ Open a `.canvas` file, or run **Canvas Design: Create Canvas**. If it opens as t
 - Collapse either sidebar with its heading arrow; use the top-left or top-right icon to restore it.
 - Drag a numeric value in **Details** left or right to adjust it with a live preview. Click to type a value, or press Escape during a drag to cancel.
 - Use the **</>** button or **Canvas Design: Open JSON Source** to edit the source directly.
+- Right-click a node and choose **Copy Node Path** to copy a reference such as `design/home.canvas#node=hero-title`. Paste it into your AI prompt: the file path starts at the containing workspace root, and `#node=` identifies the entry in the Canvas's `nodes` array by its `id`, even after reordering or regrouping. IDs are percent-encoded; decode the part after `#node=` before matching. Without a containing workspace folder, the copied file path is absolute. For a node inside a nested Canvas preview, double-click to open that Canvas first.
 - Click **Export PNG** at the bottom right, or run **Canvas Design: Export Screenshot**, to save the full canvas with its images and nested previews.
 
 | Action                                       | Shortcut or gesture                                        |
@@ -64,12 +63,12 @@ HTML cards support static HTML elements, inline styles, `<style>` blocks, and sc
 
 ## Screenshots for AI agents
 
-Install the VSIX and open any local project in VS Code. Right-click its `.canvas` file and choose **Canvas Design: Copy AI Screenshot Command**, or run that command from the palette. Paste the command into a terminal or give it to your AI agent. It includes the installed script, Canvas, and workspace paths, and works from any directory (macOS/Linux shells, or PowerShell on Windows).
+Install Canvas Design and open any local project in VS Code. Right-click its `.canvas` file and choose **Canvas Design: Copy AI Screenshot Command**, or run that command from the palette. Paste the command into a terminal or give it to your AI agent. It includes the installed script, Canvas, and workspace paths, and works from any directory (macOS/Linux shells, or PowerShell on Windows).
 
 An agent can also locate the installed script automatically with the VS Code `code` CLI. From the project folder on macOS/Linux:
 
 ```sh
-node "$(code --locate-extension canvas-studio.canvas-vscode)/scripts/capture-canvas.mjs" ./design.canvas
+node "$(code --locate-extension EvenSo.canvas-design)/scripts/capture-canvas.mjs" ./design.canvas
 ```
 
 The screenshot script is included in the VSIX; the target project does not need this repository or a script copy. Keep its workspace open in VS Code. `--workspace` must match an open folder; omit it when the current directory is that folder. The command waits for rendering and prints JSON containing the PNG `path`, pixel dimensions, and document version. The agent can then open that image. PNGs are kept in the workspace's `.canvas-design/screenshots/` directory.
@@ -78,9 +77,11 @@ Screenshots contain the full canvas without editor controls, at up to 2× resolu
 
 ## Development and contributions
 
-Run `pnpm install --frozen-lockfile`, open this repository in VS Code, and press **F5** with **Run Canvas Design** selected. Open `prototype.canvas` in the development window. After changes, run `pnpm build` and reload that window, or use `pnpm watch` while developing.
+Building requires Node.js **22+** and pnpm **10+**. Clone this repository, run `pnpm install --frozen-lockfile`, and press **F5** in VS Code with **Run Canvas Design** selected. Open `prototype.canvas` in the development window. After changes, run `pnpm build` and reload that window, or use `pnpm watch` while developing.
 
 Run `pnpm check` before submitting a change. `pnpm test:integration` also checks the extension in a real desktop VS Code window. Architecture and file-format notes are in [docs/design.md](docs/design.md).
+
+For each Marketplace release, follow the [release SOP](docs/publishing.md).
 
 [Bug reports](https://github.com/EvenZHAnglll/canvas-design/issues) and focused pull requests are welcome. Include reproduction steps and a small `.canvas` example for bugs; add screenshots for UI changes.
 

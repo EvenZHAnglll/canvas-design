@@ -9,7 +9,7 @@ import { registerScreenshotBridge } from './screenshot-bridge';
 import { screenshotCommand } from './screenshot-command';
 import { prepareFileNodes } from './file-insertion';
 
-const viewType = 'canvasStudio.editor';
+const viewType = 'canvasDesign.editor';
 const imagePattern = /\.(png|jpe?g|webp|gif|svg|bmp|avif)$/i;
 
 export function activate(context: vscode.ExtensionContext) {
@@ -18,31 +18,32 @@ export function activate(context: vscode.ExtensionContext) {
     webviewOptions: { retainContextWhenHidden: true }, supportsMultipleEditorsPerDocument: true,
   }));
   context.subscriptions.push(
-    vscode.commands.registerCommand('canvasStudio.addFilesToCanvas', (uri?: vscode.Uri, selected?: vscode.Uri[]) => {
+    vscode.commands.registerCommand('canvasDesign.copyNodePath', context => provider.copyNodePath(context)),
+    vscode.commands.registerCommand('canvasDesign.addFilesToCanvas', (uri?: vscode.Uri, selected?: vscode.Uri[]) => {
       const files = selected?.length && (!uri || selected.some(item => item.toString() === uri.toString())) ? selected : uri ? [uri] : undefined;
       return provider.addFilesToActiveCanvas(files);
     }),
-    vscode.commands.registerCommand('canvasStudio.openPreview', (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand('canvasDesign.openPreview', (uri?: vscode.Uri) => {
       const target = uri ?? vscode.window.activeTextEditor?.document.uri ?? provider.activeUri;
       if (target) return vscode.commands.executeCommand('vscode.openWith', target, viewType);
     }),
-    vscode.commands.registerCommand('canvasStudio.openSource', (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand('canvasDesign.openSource', (uri?: vscode.Uri) => {
       const target = uri ?? provider.activeUri ?? vscode.window.activeTextEditor?.document.uri;
       if (target) return vscode.commands.executeCommand('vscode.openWith', target, 'default');
     }),
-    vscode.commands.registerCommand('canvasStudio.newCanvas', async () => {
+    vscode.commands.registerCommand('canvasDesign.newCanvas', async () => {
       const root = vscode.workspace.workspaceFolders?.[0]?.uri;
       const uri = await vscode.window.showSaveDialog({ defaultUri: root && vscode.Uri.joinPath(root, 'untitled.canvas'), filters: { 'JSON Canvas': ['canvas'] } });
       if (!uri) return;
       await vscode.workspace.fs.writeFile(uri, Buffer.from('{\n  "nodes": [],\n  "edges": []\n}\n'));
       await vscode.commands.executeCommand('vscode.openWith', uri, viewType);
     }),
-    vscode.commands.registerCommand('canvasStudio.exportScreenshot', async (uri?: vscode.Uri, destination?: vscode.Uri) => {
+    vscode.commands.registerCommand('canvasDesign.exportScreenshot', async (uri?: vscode.Uri, destination?: vscode.Uri) => {
       const target = uri ?? provider.activeUri ?? vscode.window.activeTextEditor?.document.uri;
       if (!target) throw new Error('Open a Canvas before exporting a screenshot.');
       return provider.exportScreenshot(target, destination);
     }),
-    vscode.commands.registerCommand('canvasStudio.copyScreenshotCommand', async (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand('canvasDesign.copyScreenshotCommand', async (uri?: vscode.Uri) => {
       const active = vscode.window.activeTextEditor?.document.uri;
       const target = uri ?? (active && /\.canvas$/i.test(active.path) ? active : provider.activeUri);
       if (!target || target.scheme !== 'file' || !/\.canvas$/i.test(target.path)) throw new Error('Open a local Canvas before copying its screenshot command.');
@@ -91,6 +92,33 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
     if (!files?.length) return;
     if (!this.editors.has(panel) || !panel.active) throw new Error('The active Canvas changed. Add the files again in its preview.');
     if (!await panel.webview.postMessage({ type: 'insertFiles', uris: files.map(uri => uri.toString()) })) throw new Error('The Canvas preview is not ready.');
+  }
+
+  async copyNodePath(context?: { canvasDesignNodeId?: unknown; canvasDesignUri?: unknown }) {
+    await this.edits;
+    if (
+      typeof context?.canvasDesignNodeId !== 'string' ||
+      typeof context.canvasDesignUri !== 'string'
+    ) {
+      throw new Error('Right-click a Canvas node to copy its path.');
+    }
+    const target = [...this.editors].find(
+      ([panel, editor]) =>
+        panel.active && editor.ready && editor.document.uri.toString() === context.canvasDesignUri,
+    );
+    if (!target) throw new Error('The active Canvas changed. Right-click the node again.');
+    const document = target[1].document;
+    if (!parseCanvas(document.getText()).nodes.some(node => node.id === context.canvasDesignNodeId)) {
+      throw new Error('This node no longer exists. Right-click a node in the current Canvas.');
+    }
+    const folder = vscode.workspace.getWorkspaceFolder(document.uri);
+    const canvasPath = folder
+      ? path.relative(folder.uri.fsPath, document.uri.fsPath)
+      : document.uri.fsPath;
+    const reference = `${canvasPath.split(path.sep).join('/')}#node=${encodeURIComponent(context.canvasDesignNodeId)}`;
+    await vscode.env.clipboard.writeText(reference);
+    void vscode.window.showInformationMessage('Node path copied. Share it with your AI agent.');
+    return reference;
   }
 
   async resolveCustomTextEditor(document: vscode.TextDocument, panel: vscode.WebviewPanel): Promise<void> {
@@ -167,7 +195,7 @@ class CanvasEditor implements vscode.CustomTextEditorProvider {
     const refresh = async () => {
       const ticket = ++generation;
       const version = document.version;
-      const state: CanvasState = { type: 'state', version, name: path.basename(document.uri.fsPath) };
+      const state: CanvasState = { type: 'state', version, name: path.basename(document.uri.fsPath), uri: document.uri.toString() };
       try {
         state.data = parseCanvas(document.getText());
         referenced = new Set();

@@ -7,7 +7,7 @@ import { nodeName } from '../src/shared/hierarchy';
 const fixture = (): CanvasData => ({
   custom: { revision: 'agent' },
   nodes: [
-    { id: 'a', type: 'text', x: -20, y: 10, width: 100, height: 80, text: 'Hello', custom: { keep: true }, canvasStudio: { radius: 12, vendor: 'keep' } },
+    { id: 'a', type: 'text', x: -20, y: 10, width: 100, height: 80, text: 'Hello', custom: { keep: true }, canvasDesign: { radius: 12, vendor: 'keep' } },
     { id: 'b', type: 'file', x: 200, y: 20, width: 120, height: 100, file: 'child.canvas' },
   ],
   edges: [{ id: 'e', fromNode: 'a', toNode: 'b', label: 'flow', custom: true }],
@@ -23,19 +23,19 @@ test('accepts the four standard node types and optional empty arrays', () => {
 test('HTML cards remain standard text nodes and preserve fallback and extension data through edits', () => {
   const data = fixture();
   data.nodes[0].text = 'Fallback card';
-  data.nodes[0].canvasStudio = { ...data.nodes[0].canvasStudio, type: 'html', html: '<div>Hello</div>', css: 'div { color: red; }' };
+  data.nodes[0].canvasDesign = { ...data.nodes[0].canvasDesign, type: 'html', html: '<div>Hello</div>', css: 'div { color: red; }' };
   assert.equal(isHtmlNode(parseCanvas(JSON.stringify(data)).nodes[0]), true);
-  const updated = applyOperation(data, { type: 'updateNodes', updates: [{ id: 'a', patch: { x: 55, canvasStudio: { html: '<section>Updated</section>' } } }] });
+  const updated = applyOperation(data, { type: 'updateNodes', updates: [{ id: 'a', patch: { x: 55, canvasDesign: { html: '<section>Updated</section>' } } }] });
   const restored = parseCanvas(serializeCanvas(updated, '{}'));
   assert.equal(restored.nodes[0].type, 'text');
   assert.equal(restored.nodes[0].text, 'Fallback card');
-  assert.deepEqual(restored.nodes[0].canvasStudio, { radius: 12, vendor: 'keep', type: 'html', html: '<section>Updated</section>', css: 'div { color: red; }' });
+  assert.deepEqual(restored.nodes[0].canvasDesign, { radius: 12, vendor: 'keep', type: 'html', html: '<section>Updated</section>', css: 'div { color: red; }' });
   assert.equal(nodeName({ ...restored.nodes[0], text: '' }), 'HTML');
-  assert.equal(isHtmlNode({ ...restored.nodes[1], canvasStudio: { type: 'html' } }), false);
+  assert.equal(isHtmlNode({ ...restored.nodes[1], canvasDesign: { type: 'html' } }), false);
   assert.equal(isHtmlNode(data.nodes[1]), false);
   assert.throws(() => parseCanvas(JSON.stringify({ nodes: [{ ...data.nodes[0], type: 'html' }] })), /unsupported type/);
   // Extension metadata remains recoverable even when produced by another tool.
-  assert.equal(parseCanvas(JSON.stringify({ nodes: [{ ...data.nodes[0], canvasStudio: { type: 'html', html: 42, css: null } }] })).nodes[0].text, 'Fallback card');
+  assert.equal(parseCanvas(JSON.stringify({ nodes: [{ ...data.nodes[0], canvasDesign: { type: 'html', html: 42, css: null } }] })).nodes[0].text, 'Fallback card');
 });
 test('rejects invalid JSON, unsupported types, duplicate ids, and missing text', () => {
   assert.throws(() => parseCanvas('{'), /Invalid JSON/);
@@ -52,11 +52,11 @@ test('rejects dangling edges and invalid endpoint conventions', () => {
 });
 test('editing preserves unknown root, node, edge, and extension metadata', () => {
   const data = fixture();
-  const edited = applyOperation(data, { type: 'updateNodes', updates: [{ id: 'a', patch: { x: 35, canvasStudio: { fill: '#ffffff' } } }] });
+  const edited = applyOperation(data, { type: 'updateNodes', updates: [{ id: 'a', patch: { x: 35, canvasDesign: { fill: '#ffffff' } } }] });
   assert.deepEqual(edited.custom, data.custom);
   assert.deepEqual(edited.nodes[0].custom, { keep: true });
   assert.deepEqual(edited.edges, data.edges);
-  assert.deepEqual(edited.nodes[0].canvasStudio, { radius: 12, vendor: 'keep', fill: '#ffffff' });
+  assert.deepEqual(edited.nodes[0].canvasDesign, { radius: 12, vendor: 'keep', fill: '#ffffff' });
   assert.equal(data.nodes[0].x, -20);
 });
 test('node deletion removes incident edges and retains other nodes', () => {
@@ -81,7 +81,7 @@ test('bounds include negative coordinates and dimensions', () => {
 });
 test('style normalizes untrusted extensions and maps JSON Canvas palette colors', () => {
   const node = fixture().nodes[0];
-  node.color = '6'; node.canvasStudio = { radius: -100, fontSize: Infinity, fill: 'url(bad)', shape: 'ellipse' };
+  node.color = '6'; node.canvasDesign = { radius: -100, fontSize: Infinity, fill: 'url(bad)', shape: 'ellipse' };
   const style = getStyle(node);
   assert.equal(style.stroke, '#9a82db'); assert.equal(style.fill, '#ffffff'); assert.equal(style.radius, 0); assert.equal(style.fontSize, 16); assert.equal(style.shape, 'ellipse');
 });

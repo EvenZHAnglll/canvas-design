@@ -122,7 +122,7 @@ async function run() {
             y: 0,
             width: 240,
             height: 140,
-            canvasStudio: {
+            canvasDesign: {
               type: 'html',
               html: '<div class="nested">Nested HTML</div>',
               css: '.nested { width:100%; height:140px; background:#ed3ea4; color:#fff; padding:20px; }',
@@ -136,7 +136,7 @@ async function run() {
   const states: CanvasData[] = [];
   const redo: CanvasData[] = [];
   function refresh() {
-    send({ type: 'state', version, name: 'browser.canvas', data, assets });
+    send({ type: 'state', version, name: 'browser.canvas', uri: 'file:///project/browser.canvas', data, assets });
   }
   Object.assign(window, {
     acquireVsCodeApi: () => ({
@@ -199,6 +199,11 @@ async function run() {
   });
   await import('../src/webview/main');
   await until(() => !!document.querySelector('.react-flow__node'), 'Editor mounts');
+  const plainNode = document.querySelector<HTMLElement>('.react-flow__node[data-id="plain"] .flow-node')!;
+  const nodeContext = JSON.parse(plainNode.dataset.vscodeContext!);
+  assert(nodeContext.webviewSection === 'canvasNode' && nodeContext.canvasDesignNodeId === 'plain' && nodeContext.canvasDesignUri === 'file:///project/browser.canvas', 'Native node menu identifies the exact node and Canvas document');
+  plainNode.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 }));
+  await until(() => !!document.querySelector('.react-flow__node[data-id="plain"].selected'), 'Right-click selects its target node');
   document.querySelector<HTMLButtonElement>('[data-tool="html"]')!.click();
   await until(() => !!document.querySelector('.draw-layer'), 'HTML creation tool activates');
   const layer = document.querySelector<HTMLElement>('.draw-layer')!;
@@ -216,7 +221,7 @@ async function run() {
   );
   const id = data.nodes[2].id;
   assert(
-    data.nodes[2].type === 'text' && data.nodes[2].canvasStudio?.type === 'html',
+    data.nodes[2].type === 'text' && data.nodes[2].canvasDesign?.type === 'html',
     'Creation saves a standard text node',
   );
   assert(
@@ -244,7 +249,7 @@ async function run() {
   await edit('W', '360');
   assert(
     data.nodes[2].text === 'Portable fallback' &&
-      data.nodes[2].canvasStudio?.html?.includes('Edited HTML'),
+      data.nodes[2].canvasDesign?.html?.includes('Edited HTML'),
     'Fallback and HTML remain independent',
   );
   assert(
@@ -287,7 +292,7 @@ async function run() {
   const beforeExternal = editCount;
   data = applyOperation(data, {
     type: 'updateNodes',
-    updates: [{ id, patch: { canvasStudio: { html: '<div>Agent update</div>' } } }],
+    updates: [{ id, patch: { canvasDesign: { html: '<div>Agent update</div>' } } }],
   });
   version++;
   refresh();
@@ -315,7 +320,7 @@ async function run() {
       ...data,
       nodes: data.nodes.map((node) =>
         node.id === id
-          ? { ...node, canvasStudio: { ...node.canvasStudio, html: null, css: 42 } }
+          ? { ...node, canvasDesign: { ...node.canvasDesign, html: null, css: 42 } }
           : node,
       ),
     }),
@@ -334,7 +339,7 @@ async function run() {
       {
         id,
         patch: {
-          canvasStudio: {
+          canvasDesign: {
             html: '<div>Recovered HTML</div>',
             css: 'div { padding:24px; background:#19c37d; height:100%; }',
           },
@@ -436,7 +441,7 @@ async function run() {
   holdFileReplies = false;
   const beforeInvalidDrop = fileRequests.length;
   version++;
-  send({ type: 'state', version, name: 'browser.canvas', error: 'Invalid JSON' });
+  send({ type: 'state', version, name: 'browser.canvas', uri: 'file:///project/browser.canvas', error: 'Invalid JSON' });
   dropEvent('drop');
   assert(
     fileRequests.length === beforeInvalidDrop && !stage.classList.contains('file-drop-active'),

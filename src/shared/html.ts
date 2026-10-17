@@ -2,7 +2,7 @@ import type { CanvasNode } from './canvas';
 
 /** HTML is an editor subtype, never a fifth JSON Canvas node type. */
 export function isHtmlNode(node: CanvasNode): boolean {
-  return node.type === 'text' && node.canvasStudio?.type === 'html';
+  return node.type === 'text' && node.canvasDesign?.type === 'html';
 }
 
 export const defaultHtml =

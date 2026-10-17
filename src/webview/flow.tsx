@@ -10,6 +10,7 @@ import { renderHtmlPreview } from './html-preview';
 
 interface Options {
   data: CanvasData;
+  documentUri: string;
   assets: Record<string, AssetPreview>;
   selected: Set<string>;
   tool: string;
@@ -29,8 +30,8 @@ const positions = { top: Position.Top, right: Position.Right, bottom: Position.B
 
 function HtmlPreview({ node }: { node: CanvasNode }) {
   const host = useRef<HTMLDivElement>(null);
-  const html = node.canvasStudio?.html;
-  const css = node.canvasStudio?.css;
+  const html = node.canvasDesign?.html;
+  const css = node.canvasDesign?.css;
   useLayoutEffect(() => {
     if (host.current) renderHtmlPreview(host.current, typeof html === 'string' ? html : '', typeof css === 'string' ? css : '');
   }, [html, css]);
@@ -76,7 +77,9 @@ function DesignNode({ data, selected }: NodeProps<StudioNode>) {
       if (actions.version !== resizeVersion.current) { actions.onNotice('The file changed; resize cancelled.'); return; }
       actions.onCommit({ type: 'updateNodes', updates: [{ id: node.id, patch: { x: Math.round(size.x), y: Math.round(size.y), width: Math.round(size.width), height: Math.round(size.height) } }] });
     }} />
-    <div className={`flow-node ${node.type}${frameless ? ' frameless' : ''}${selected ? ' selected' : ''}`} style={boxStyle} onDoubleClick={event => {
+    <div className={`flow-node ${node.type}${frameless ? ' frameless' : ''}${selected ? ' selected' : ''}`} style={boxStyle} data-vscode-context={JSON.stringify({ webviewSection: 'canvasNode', canvasDesignNodeId: node.id, canvasDesignUri: actions.documentUri })} onContextMenu={() => {
+      if (!actions.selected.has(node.id)) actions.onSelect([node.id]);
+    }} onDoubleClick={event => {
       event.stopPropagation();
       if (isHtmlNode(node)) { document.querySelector<HTMLTextAreaElement>('#properties textarea[aria-label="HTML"]')?.focus(); }
       else if (node.type === 'text' || node.type === 'group') { editVersion.current = actions.version; setText(node.type === 'group' ? node.label ?? '' : node.text ?? ''); }

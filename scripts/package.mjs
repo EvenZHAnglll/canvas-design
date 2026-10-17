@@ -3,13 +3,14 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
 import { generateThirdPartyNotices } from './third-party-notices.mjs';
+import { validatePackageIcon } from './validate-package.mjs';
 
 // Offline local packaging. Runtime dependencies are already bundled by esbuild.
 // Requires the zip CLI (included in macOS and commonly available on Linux).
 const root = process.cwd();
 const manifest = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
 const output = path.join(root, 'dist', `${manifest.name}-${manifest.version}.vsix`);
-const staging = await mkdtemp(path.join(os.tmpdir(), 'canvas-studio-package-'));
+const staging = await mkdtemp(path.join(os.tmpdir(), 'canvas-design-package-'));
 const xml = (value) =>
   String(value).replace(
     /[&<>"']/g,
@@ -24,18 +25,22 @@ const xml = (value) =>
   );
 
 try {
+  await validatePackageIcon(root, manifest.icon);
   await generateThirdPartyNotices();
   await mkdir(path.join(staging, 'extension', 'dist'), { recursive: true });
   await mkdir(path.join(staging, 'extension', 'scripts'), { recursive: true });
+  await mkdir(path.join(staging, 'extension', 'media'), { recursive: true });
   for (const file of [
     'package.json',
     'README.md',
+    'CHANGELOG.md',
     'LICENSE',
     'THIRD_PARTY_NOTICES.txt',
     'dist/extension.cjs',
     'dist/webview.js',
     'dist/webview.css',
     'scripts/capture-canvas.mjs',
+    manifest.icon,
   ]) {
     await copyFile(path.join(root, file), path.join(staging, 'extension', file));
   }
@@ -50,6 +55,7 @@ try {
   <Default Extension="css" ContentType="text/css" />
   <Default Extension="md" ContentType="text/markdown" />
   <Default Extension="txt" ContentType="text/plain" />
+  <Default Extension="png" ContentType="image/png" />
   <Override PartName="/extension/LICENSE" ContentType="text/plain" />
 </Types>
 `,
@@ -63,8 +69,10 @@ try {
     <DisplayName>${xml(manifest.displayName)}</DisplayName>
     <Description xml:space="preserve">${xml(manifest.description)}</Description>
     <License>extension/LICENSE</License>
-    <Tags>canvas,visualization</Tags>
+    <Tags>${xml(manifest.keywords.join(','))}</Tags>
     <Categories>${xml(manifest.categories.join(','))}</Categories>
+    <GalleryFlags>Public</GalleryFlags>
+    <Icon>extension/${xml(manifest.icon)}</Icon>
     <Properties>
       <Property Id="Microsoft.VisualStudio.Code.Engine" Value="${xml(manifest.engines.vscode)}" />
       <Property Id="Microsoft.VisualStudio.Code.ExtensionDependencies" Value="" />
@@ -78,7 +86,9 @@ try {
   <Assets>
     <Asset Type="Microsoft.VisualStudio.Code.Manifest" Path="extension/package.json" Addressable="true" />
     <Asset Type="Microsoft.VisualStudio.Services.Content.Details" Path="extension/README.md" Addressable="true" />
+    <Asset Type="Microsoft.VisualStudio.Services.Content.Changelog" Path="extension/CHANGELOG.md" Addressable="true" />
     <Asset Type="Microsoft.VisualStudio.Services.Content.License" Path="extension/LICENSE" Addressable="true" />
+    <Asset Type="Microsoft.VisualStudio.Services.Icons.Default" Path="extension/${xml(manifest.icon)}" Addressable="true" />
   </Assets>
 </PackageManifest>
 `,

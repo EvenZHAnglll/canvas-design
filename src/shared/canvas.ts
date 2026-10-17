@@ -29,7 +29,7 @@ export interface CanvasNode {
   label?: string;
   background?: string;
   backgroundStyle?: 'cover' | 'ratio' | 'repeat';
-  canvasStudio?: DesignStyle;
+  canvasDesign?: DesignStyle;
   [key: string]: unknown;
 }
 export interface CanvasEdge {
@@ -67,6 +67,7 @@ export interface CanvasState {
   type: 'state';
   version: number;
   name: string;
+  uri: string;
   data?: CanvasData;
   assets?: Record<string, AssetPreview>;
   error?: string;
@@ -104,7 +105,7 @@ export function parseCanvas(source: string): CanvasData {
     if (item.subpath !== undefined && !(item.subpath as string).startsWith('#')) fail(`${name}.subpath must start with #.`);
     if (item.backgroundStyle !== undefined && !['cover', 'ratio', 'repeat'].includes(item.backgroundStyle as string)) fail(`${name}.backgroundStyle is invalid.`);
     if (!colorValid(item.color)) fail(`${name}.color must be 1–6 or a six-digit hex color.`);
-    if (item.canvasStudio !== undefined && !object(item.canvasStudio)) fail(`${name}.canvasStudio must be an object.`);
+    if (item.canvasDesign !== undefined && !object(item.canvasDesign)) fail(`${name}.canvasDesign must be an object.`);
   }
   const edgeIds = new Set<string>();
   for (const [index, item] of data.edges.entries()) {
@@ -132,9 +133,9 @@ export function applyOperation(data: CanvasData, operation: Operation): CanvasDa
       for (const { id, patch } of operation.updates) {
         const node = result.nodes.find(item => item.id === id);
         if (!node) fail(`Node ${id} no longer exists.`);
-        const { id: ignoredId, canvasStudio, ...fields } = patch;
+        const { id: ignoredId, canvasDesign, ...fields } = patch;
         Object.assign(node, fields);
-        if (canvasStudio) node.canvasStudio = { ...node.canvasStudio, ...canvasStudio };
+        if (canvasDesign) node.canvasDesign = { ...node.canvasDesign, ...canvasDesign };
       }
       break;
     case 'deleteNodes': {
@@ -177,7 +178,7 @@ export function isFramelessFileNode(node: CanvasNode): boolean {
 export function getStyle(node: CanvasNode) {
   const palette = ['#ef6666', '#ed9f48', '#e4c65b', '#63bb8b', '#609be4', '#9a82db'];
   const base = node.color && (/^[1-6]$/.test(node.color) ? palette[Number(node.color) - 1] : node.color);
-  const style = node.canvasStudio ?? {};
+  const style = node.canvasDesign ?? {};
   const hex = (value: unknown, fallback: string) =>
     typeof value === 'string' && parseHexColor(value) ? value : fallback;
   const fill = hex(style.fill, node.type === 'group' ? '#e9edf5' : '#ffffff');
